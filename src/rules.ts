@@ -23,6 +23,11 @@ export function match(input: string, pattern: string): boolean {
   return regex.test(input.replaceAll("\\", "/"))
 }
 
+/** The rule that decides `resource`: the last one matching. */
+export function matching(rules: Permission.Ruleset, action: string, resource: string): Permission.Rule | undefined {
+  return rules.findLast((rule) => match(action, rule.action) && match(resource, rule.resource))
+}
+
 export function evaluate(rules: Permission.Ruleset, action: string, resource: string): Permission.Effect {
-  return rules.findLast((rule) => match(action, rule.action) && match(resource, rule.resource))?.effect ?? "ask"
+  return matching(rules, action, resource)?.effect ?? "ask"
 }
