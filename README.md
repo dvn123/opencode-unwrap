@@ -15,7 +15,7 @@ The plugin hooks `permission.evaluate`, which OpenCode runs for every shell
 decision that its rules did not already deny. For each command it peels
 launch prefixes, repeatedly, and judges each peeled spelling by the same rules
 OpenCode uses: the agent's rules followed by the session's, last match wins.
-The strictest result stands.
+The strictest result stands, except for the one allow described below.
 
 It peels:
 
@@ -25,14 +25,37 @@ It peels:
   `nocorrect`, `noglob`, `nohup`, `stdbuf`, `sudo`, `time`, `timeout`, and
   `xargs`, with the options each takes.
 
-It only ever denies: when the rules deny a peeled spelling, the command is
-denied. Any other result of a peeled spelling is ignored, because a spelling
-no narrower rule covers falls to the catch-all, and `./gradlew` must not
-inherit that `ask` as `gradlew`. It loads rules only for a command that has
-something to peel, and denies the command if the rules cannot be loaded.
+When the rules deny a peeled spelling, the command is denied. The one allow it
+carries goes the other way: a command that fell to the catch-all `ask` is
+allowed when peeling only transparent wrappers reaches an allow rule, so
+`timeout 30 git status` runs wherever `git status` does. Transparent means
+`nice`, `nohup`, `noglob`, `nocorrect`, `time -p`, and `timeout`, named bare
+or from `/bin` or `/usr/bin`, with only the options that change when or how
+the command runs; `time -o FILE` does not qualify. A narrower rule matching
+any spelling on the way decides instead, so an ask written for `timeout * bq
+cp` still asks. Assignments, program paths, and the other wrappers never carry
+an allow: they change the program, its arguments, or its user, and
+`./gradlew` must not inherit anything from `gradlew`. It loads rules only for a
+command that has something to peel, and denies the command if the rules
+cannot be loaded.
 
 It does not interpret `sh -c` or `eval` payloads, split bundled short options
 such as `-sT`, or skip options between a program and its subcommand.
+
+## Deny reasons
+
+A denied command can tell the model what to run instead. The plugin reads
+`opencode-unwrap.json` from beside its plugins directory:
+
+```json
+{"reasons": {"rm *": "use `trash`"}}
+```
+
+Each key is the exact `resource` of a shell deny rule. When the rule that
+decided a denied command has a reason, the denial names it. OpenCode never
+runs `permission.evaluate` for its own denies, so for those the plugin sets
+the reason on the `Permission.BlockedError` from `tool.execute.after`. A
+missing or unreadable file leaves reasons out; it never fails the plugin.
 
 ## Install
 
