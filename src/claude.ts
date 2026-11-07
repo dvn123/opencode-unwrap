@@ -33,7 +33,7 @@ export { spellings, transparent } from "./peel.ts"
 const ROOT = resolve(import.meta.dir, "..")
 const REASONS = "shell-unwrap.json"
 // Claude Code prompts for a command it cannot fully analyse.
-const MAX_COMMAND = 10_000
+export const MAX_COMMAND = 10_000
 const ALLOWED = "shell-unwrap: every command matches an allow rule"
 
 // Commands Claude Code prompts for even under a matching allow rule, or whose
@@ -137,13 +137,13 @@ async function loadRules(root: string): Promise<Rules> {
   return buildRules(settings.permissions ?? {}, await readReasons(join(root, REASONS)))
 }
 
-function matching(bucket: Bucket, text: string): Rule[] {
+export function matching(bucket: Bucket, text: string): Rule[] {
   const word = text.split(" ", 1)[0]!
   return [...(bucket.get(word) ?? []), ...(bucket.get(null) ?? [])].filter((rule) => toRegex(rule.pattern).test(text))
 }
 
 /** Leave the decision to Claude Code. */
-class Abstain extends Error {}
+export class Abstain extends Error {}
 
 let parser: Parser | undefined
 
@@ -192,8 +192,12 @@ function checkRedirect(node: Node): void {
   throw new Abstain("redirect to a file")
 }
 
-/** The simple commands in `script`, or Abstain for anything not modelled. */
-export async function commands(script: string): Promise<string[]> {
+/**
+ * The simple commands in `script`, or Abstain for anything not modelled.
+ * With `strict` off it abstains only on a script it cannot parse, and skips
+ * what it cannot judge: a guard needs every command, not a reason to allow.
+ */
+export async function commands(script: string, strict = true): Promise<string[]> {
   const tree = (await bash()).parse(script)
   if (!tree || tree.rootNode.hasError) throw new Abstain("unparseable")
   const found: string[] = []
@@ -204,23 +208,28 @@ export async function commands(script: string): Promise<string[]> {
       case "function_definition":
       case "declaration_command":
       case "unset_command":
-        throw new Abstain(node.type)
+        if (strict) throw new Abstain(node.type)
+        break
       case "variable_assignment":
       case "variable_assignments":
-        if (node.parent && node.parent.type !== "command") throw new Abstain("shell variable assignment")
+        if (strict && node.parent && node.parent.type !== "command") throw new Abstain("shell variable assignment")
         break
       case "file_redirect":
       case "heredoc_redirect":
       case "herestring_redirect":
-        checkRedirect(node)
+        if (strict) checkRedirect(node)
         break
       case "for_statement": {
         const variable = node.childForFieldName("variable")
-        if (variable && SPECIAL.has(variable.text)) throw new Abstain("loop over a special variable")
+        if (strict && variable && SPECIAL.has(variable.text)) throw new Abstain("loop over a special variable")
         break
       }
       case "command":
-        found.push(command(node, script))
+        try {
+          found.push(command(node, script))
+        } catch (error) {
+          if (strict || !(error instanceof Abstain)) throw error
+        }
         break
     }
     stack.push(...node.namedChildren.filter((child): child is Node => child !== null).reverse())
@@ -229,7 +238,7 @@ export async function commands(script: string): Promise<string[]> {
 }
 
 /** The denial for the first of `command`'s spellings a deny rule matches. */
-function denied(rules: Rules, command: string): string | undefined {
+export function denied(rules: Rules, command: string): string | undefined {
   for (const spelling of [command, ...spellings(command)]) {
     const found = matching(rules.deny, spelling)
     if (found.length > 0) return denial(spelling, found.find((rule) => rule.reason)?.reason)

@@ -1,7 +1,7 @@
 # shell-unwrap
 
 Applies your shell permission rules to wrapped commands, as an OpenCode 2
-plugin and a Claude Code hook that share one peel.
+plugin, a Claude Code hook, and a Cursor hook that share one peel.
 
 OpenCode matches a `shell` rule against a command's raw text, so a deny for
 `rm *` does not catch `timeout 30 rm -rf x`, `FOO=1 rm -rf x`, or
@@ -10,6 +10,8 @@ wrapper, which multiplies a ruleset many times over. Claude Code peels some
 wrappers itself, but it matches an allow only against a flat command, so a
 loop, a pipeline into `xargs -n1`, or `timeout -k 5 30` prompts even when every
 program in it is allowed, and it never shows the model why a deny exists.
+Cursor Desktop's terminal allowlist has no deny list at all, so a broad allow
+such as `git` also allows every `git` command a deny would forbid.
 
 ## How it works
 
@@ -64,11 +66,24 @@ file redirects, `tee`, `find` actions, `fd -x`, `cd` outside the working
 directories or beside `git`, shell variable assignments, function
 definitions, dynamic program names, parse errors, and any failure.
 
+### Cursor
+
+The hook is a `beforeShellExecution` command in `~/.cursor/hooks.json`, which
+both Cursor Desktop and the Cursor CLI load; Desktop can refuse user-local
+plugins, so it is not one. The bundle sits in `~/.cursor/hooks/`. It reads `Bash(...)` ask and deny rules from the
+`permissions` of the `shell-unwrap.json` beside it and judges every simple
+command, including those inside functions and after declarations, with the
+same peel and matching as the Claude hook. It denies the command when any
+spelling of one is denied, and asks when any is asked. It also asks when it
+cannot parse the command or read its rules, so the guards fail closed.
+Otherwise it prints `{}`: Cursor ignores an `allow` from this hook, so the
+terminal allowlist still decides, and the hook only adds prompts and refusals.
+
 ## Deny reasons
 
-A denied command can tell the model what to run instead. Both entry points read
+A denied command can tell the model what to run instead. Each entry point reads
 `shell-unwrap.json` from the host's config root (`~/.config/opencode/`,
-`~/.claude/`):
+`~/.claude/`) or, for Cursor, from beside the bundle:
 
 ```json
 {"reasons": {"rm *": "use `trash`"}}
@@ -78,11 +93,12 @@ Each key is the exact pattern of a shell deny rule. When the rule that decided
 a denied command has a reason, the denial names it. OpenCode never runs
 `permission.evaluate` for its own denies, so for those the plugin sets the
 reason on the `Permission.BlockedError` from `tool.execute.after`. A missing
-or unreadable file leaves reasons out; it never fails either entry point.
+or unreadable file leaves reasons out; it never fails the OpenCode or Claude
+entry point.
 
 ## Install
 
-coding-agent-sync vendors both bundles and installs them with the permissions
+coding-agent-sync vendors the three bundles and installs them with the permissions
 it compiles, which rely on them; its permission audit imports `spellings` from
 the Claude bundle. To update the vendored copies:
 
@@ -92,6 +108,7 @@ bun run check
 targets=~/.local/share/src/coding-agent-sync/src/coding_agents_sync/targets/shell-unwrap
 cp dist/opencode/shell-unwrap.js "$targets/opencode.js"
 cp dist/claude/shell-unwrap.js "$targets/claude.js"
+cp dist/cursor/shell-unwrap.js "$targets/cursor.js"
 ```
 
 Standalone, copy `dist/opencode/shell-unwrap.js` into
@@ -110,8 +127,8 @@ Standalone, copy `dist/opencode/shell-unwrap.js` into
 bun run check
 ```
 
-`check` embeds the WASM files, typechecks, builds both bundles, and runs the
+`check` embeds the WASM files, typechecks, builds the three bundles, and runs the
 tests: the peel's golden tables (`test/spellings.json`,
-`test/transparent.json`), the OpenCode review, and the Claude hook's decisions
-run through the built bundle. The live OpenCode test lives in
+`test/transparent.json`), the OpenCode review, and the Claude and Cursor hooks' decisions,
+run through the built bundles. The live OpenCode test lives in
 coding-agent-sync (`tests/capabilities/targets/test_opencode_unwrap.py`).
