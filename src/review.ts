@@ -13,6 +13,21 @@ export interface Evaluation {
 export type Reasons = Readonly<Record<string, string>>
 
 /**
+ * Reads `{"reasons": {"<rule pattern>": "<reason>"}}`. Reasons are advice, so
+ * a missing or unreadable file leaves them out rather than failing the caller,
+ * which would drop the wrapped-command denies with it.
+ */
+export async function readReasons(path: string): Promise<Reasons> {
+  try {
+    const reasons = (await Bun.file(path).json())?.reasons
+    if (!reasons || typeof reasons !== "object") return {}
+    return Object.fromEntries(Object.entries(reasons).filter(([, reason]) => typeof reason === "string")) as Reasons
+  } catch {
+    return {}
+  }
+}
+
+/**
  * Denies a shell command when the rules deny any spelling peeled from it, so
  * a wrapped command is never looser than the denied command it runs. The deny
  * names the reason its rule carries. Otherwise an asked command is allowed when
@@ -35,7 +50,7 @@ export async function review(
     loaded = await rules()
   } catch (cause) {
     event.effect = "deny"
-    event.message = `opencode-unwrap could not load the shell rules: ${cause instanceof Error ? cause.message : cause}`
+    event.message = `shell-unwrap could not load the shell rules: ${cause instanceof Error ? cause.message : cause}`
     return
   }
   const denied = peeled.find((spelling) => evaluate(loaded, "shell", spelling) === "deny")
@@ -86,6 +101,6 @@ function because(rules: Permission.Ruleset, resource: string, reasons: Reasons):
   return rule?.effect === "deny" ? reasons[rule.resource] : undefined
 }
 
-function denial(command: string, reason: string | undefined): string {
+export function denial(command: string, reason: string | undefined): string {
   return `\`${command}\` is denied by the shell rules` + (reason ? `: ${reason}` : "")
 }

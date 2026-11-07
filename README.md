@@ -1,23 +1,20 @@
-# opencode-unwrap
+# shell-unwrap
 
-An OpenCode 2 plugin that applies your shell permission rules to wrapped
-commands.
+Applies your shell permission rules to wrapped commands, as an OpenCode 2
+plugin and a Claude Code hook that share one peel.
 
 OpenCode matches a `shell` rule against a command's raw text, so a deny for
 `rm *` does not catch `timeout 30 rm -rf x`, `FOO=1 rm -rf x`, or
 `/bin/rm -rf x`. The usual workaround is a copy of every deny behind every
-wrapper, which multiplies a ruleset many times over. This plugin removes the
-need for those copies.
+wrapper, which multiplies a ruleset many times over. Claude Code peels some
+wrappers itself, but it matches an allow only against a flat command, so a
+loop, a pipeline into `xargs -n1`, or `timeout -k 5 30` prompts even when every
+program in it is allowed, and it never shows the model why a deny exists.
 
 ## How it works
 
-The plugin hooks `permission.evaluate`, which OpenCode runs for every shell
-decision that its rules did not already deny. For each command it peels
-launch prefixes, repeatedly, and judges each peeled spelling by the same rules
-OpenCode uses: the agent's rules followed by the session's, last match wins.
-The strictest result stands, except for the one allow described below.
-
-It peels:
+Both entry points peel launch prefixes from a command, repeatedly, and judge
+each peeled spelling by the host's own rules. It peels:
 
 - leading `NAME=value` assignments and redirects (`> out`, `2>&1`);
 - a program path or quoting, so `/bin/rm`, `\rm`, and `"rm"` are judged as `rm`;
@@ -26,51 +23,86 @@ It peels:
   `xargs`, with the options each takes.
 
 When the rules deny a peeled spelling, the command is denied. The one allow it
-carries goes the other way: a command that fell to the catch-all `ask` is
-allowed when peeling only transparent wrappers reaches an allow rule, so
+carries goes the other way: a command that would otherwise ask is allowed when
+peeling only transparent wrappers reaches an allow rule, so
 `timeout 30 git status` runs wherever `git status` does. Transparent means
-`nice`, `nohup`, `noglob`, `nocorrect`, `time -p`, and `timeout`, named bare
-or from `/bin` or `/usr/bin`, with only the options that change when or how
-the command runs; `time -o FILE` does not qualify. A narrower rule matching
-any spelling on the way decides instead, so an ask written for `timeout * bq
-cp` still asks. Assignments, program paths, and the other wrappers never carry
-an allow: they change the program, its arguments, or its user, and
-`./gradlew` must not inherit anything from `gradlew`. It loads rules only for a
-command that has something to peel, and denies the command if the rules
-cannot be loaded.
+`builtin`, `command`, `env -i` and `env -u`, `nice`, `nocorrect`, `noglob`,
+`nohup`, `stdbuf`, `time -p`, `timeout`, and `xargs`, named bare or from
+`/bin` or `/usr/bin`, with only the options that change when or how the
+command runs or how much environment it sees; `time -o FILE`, `env -C`, and
+`env NAME=value` do not qualify. `xargs` appends its input, so unless it
+substitutes it (`-I`, `-J`) the command must pass with one more argument: an
+exact rule never carries it. A narrower rule matching any spelling on the way
+decides instead, so an ask written for `timeout * bq cp` still asks.
+Assignments, program paths, and the other wrappers never carry an allow: they
+change the program, its user, or its environment, and `./gradlew` must not
+inherit anything from `gradlew`.
 
 It does not interpret `sh -c` or `eval` payloads, split bundled short options
 such as `-sT`, or skip options between a program and its subcommand.
 
+### OpenCode
+
+The plugin hooks `permission.evaluate`, which OpenCode runs for every shell
+decision that its rules did not already deny, and judges spellings by the
+agent's rules followed by the session's, last match wins. It loads rules only
+for a command that has something to peel, and denies the command if the rules
+cannot be loaded.
+
+### Claude Code
+
+The hook is a `Bash` PreToolUse command. It parses the command with
+tree-sitter's bash grammar, embedded in the bundle, and judges every simple
+command inside it, including those in loops, pipelines, subshells, and command
+substitutions, against the `Bash(...)` rules in `settings.json` with Claude's
+glob matching. It denies the whole command when any spelling of one is denied,
+and allows it when every one reaches an allow. Claude still evaluates its own
+deny and ask rules after a hook allow, so the hook only removes prompts.
+
+It stays silent, leaving the command to Claude, on anything it does not model:
+file redirects, `tee`, `find` actions, `fd -x`, `cd` outside the working
+directories or beside `git`, shell variable assignments, function
+definitions, dynamic program names, parse errors, and any failure.
+
 ## Deny reasons
 
-A denied command can tell the model what to run instead. The plugin reads
-`opencode-unwrap.json` from beside its plugins directory:
+A denied command can tell the model what to run instead. Both entry points read
+`shell-unwrap.json` from the host's config root (`~/.config/opencode/`,
+`~/.claude/`):
 
 ```json
 {"reasons": {"rm *": "use `trash`"}}
 ```
 
-Each key is the exact `resource` of a shell deny rule. When the rule that
-decided a denied command has a reason, the denial names it. OpenCode never
-runs `permission.evaluate` for its own denies, so for those the plugin sets
-the reason on the `Permission.BlockedError` from `tool.execute.after`. A
-missing or unreadable file leaves reasons out; it never fails the plugin.
+Each key is the exact pattern of a shell deny rule. When the rule that decided
+a denied command has a reason, the denial names it. OpenCode never runs
+`permission.evaluate` for its own denies, so for those the plugin sets the
+reason on the `Permission.BlockedError` from `tool.execute.after`. A missing
+or unreadable file leaves reasons out; it never fails either entry point.
 
 ## Install
 
-coding-agent-sync vendors the bundle and installs it with the OpenCode
-permissions it compiles, which rely on it. Its audit ports the peeling to
-Python and must match `test/spellings.json` exactly. To update both copies:
+coding-agent-sync vendors both bundles and installs them with the permissions
+it compiles, which rely on them; its permission audit imports `spellings` from
+the Claude bundle. To update the vendored copies:
 
 ```sh
 bun install
-bun run build
-cp dist/opencode-unwrap.js ~/.local/share/src/coding-agent-sync/src/coding_agents_sync/targets/
-cp test/spellings.json ~/.local/share/src/coding-agent-sync/tests/fixtures/opencode-unwrap/
+bun run check
+targets=~/.local/share/src/coding-agent-sync/src/coding_agents_sync/targets/shell-unwrap
+cp dist/opencode/shell-unwrap.js "$targets/opencode.js"
+cp dist/claude/shell-unwrap.js "$targets/claude.js"
 ```
 
-Standalone, copy the bundle into `~/.config/opencode/plugins/`.
+Standalone, copy `dist/opencode/shell-unwrap.js` into
+`~/.config/opencode/plugins/`, or copy `dist/claude/shell-unwrap.js` into
+`~/.claude/hooks/` and register it in `settings.json`:
+
+```json
+{"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+  {"type": "command", "command": "bun ~/.claude/hooks/shell-unwrap.js 2>/dev/null || true"}
+]}]}}
+```
 
 ## Develop
 
@@ -78,7 +110,8 @@ Standalone, copy the bundle into `~/.config/opencode/plugins/`.
 bun run check
 ```
 
-`check` typechecks against `@opencode/plugin` and runs the unit tests. The live
-test lives in coding-agent-sync
-(`tests/capabilities/targets/test_opencode_unwrap.py`) and reads the bundle
-path from `OPENCODE_UNWRAP_PLUGIN`.
+`check` embeds the WASM files, typechecks, builds both bundles, and runs the
+tests: the peel's golden tables (`test/spellings.json`,
+`test/transparent.json`), the OpenCode review, and the Claude hook's decisions
+run through the built bundle. The live OpenCode test lives in
+coding-agent-sync (`tests/capabilities/targets/test_opencode_unwrap.py`).

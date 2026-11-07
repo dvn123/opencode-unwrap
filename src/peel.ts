@@ -68,7 +68,7 @@ const WRAPPERS: Readonly<Record<string, Wrapper>> = {
 }
 
 /** Splits one command into words, honouring quotes and backslashes. */
-function words(text: string): Word[] {
+export function words(text: string): Word[] {
   const found: Word[] = []
   let index = 0
   while (index < text.length) {
@@ -104,7 +104,7 @@ function words(text: string): Word[] {
   return found
 }
 
-function basename(program: string): string {
+export function basename(program: string): string {
   return program.slice(program.lastIndexOf("/") + 1)
 }
 
@@ -130,20 +130,45 @@ function wrapped(list: readonly Word[], wrapper: Wrapper): number | undefined {
   return undefined
 }
 
-// Wrappers that change only when or how the command runs, with the options
-// that keep it so. `time -o FILE` writes a file and `timeout -s` only picks a
-// signal, so the tables list what is safe rather than what is not.
+// Wrappers that change only when, how, or with how much environment the
+// command runs, with the options that keep it so. `time -o FILE` writes a
+// file, `env -C` moves the command, and an `env NAME=value` assignment can
+// change which program runs, so the tables list what is safe rather than what
+// is not.
 const TRANSPARENT: Readonly<Record<string, readonly string[]>> = {
+  builtin: [],
+  command: [],
+  env: ["-i", "--ignore-environment", "-u", "--unset"],
   nice: ["-n", "--adjustment"],
-  nohup: [],
-  noglob: [],
   nocorrect: [],
+  noglob: [],
+  nohup: [],
+  stdbuf: ["-e", "-i", "-o", "--error", "--input", "--output"],
   time: ["-p"],
   timeout: ["-k", "--kill-after", "-s", "--signal", "--foreground", "--preserve-status", "-v", "--verbose"],
+  xargs: [
+    "-0", "-d", "-E", "-I", "-J", "-L", "-n", "-P", "-r", "-s", "-t", "-x",
+    "--delimiter", "--exit", "--max-args", "--max-chars", "--max-lines",
+    "--max-procs", "--no-run-if-empty", "--null", "--verbose",
+  ],
 }
 // A wrapper named by path runs only from a system directory: `/tmp/timeout`
 // could be anything.
 const SYSTEM_DIRS = ["", "/bin/", "/usr/bin/"]
+// `xargs` appends what it reads to the command unless it substitutes it, so
+// the command it runs must pass with one more argument than it was written
+// with: an exact rule must not carry it.
+const XARGS_INPUT = "<xargs-input>"
+const XARGS_REPLACE = ["-I", "-J", "--replace"]
+
+/** Whether a word before the wrapped command keeps the wrapper transparent. */
+function permitted(value: string, options: readonly string[]): boolean {
+  if (value === "--") return true
+  if (!value.startsWith("-")) return !ASSIGNMENT.test(value)
+  if (options.includes(value.split("=")[0]!)) return true
+  // A short option with its value joined: `-n1`, `-oL`, `-uNAME`.
+  return !value.startsWith("--") && value.length > 2 && options.includes(value.slice(0, 2))
+}
 
 /**
  * The command a transparent wrapper runs, or undefined when `command` does not
@@ -159,10 +184,11 @@ export function transparent(command: string): string | undefined {
   if (!options || !SYSTEM_DIRS.includes(head.value.slice(0, head.value.length - program.length))) return undefined
   const index = wrapped(list, WRAPPERS[program]!)
   if (index === undefined) return undefined
-  const safe = list
-    .slice(1, index)
-    .every(({ value }) => !value.startsWith("-") || value === "--" || options.includes(value.split("=")[0]!))
-  return safe ? text.slice(list[index]!.start).trim() : undefined
+  const before = list.slice(1, index)
+  if (!before.every(({ value }) => permitted(value, options))) return undefined
+  const inner = text.slice(list[index]!.start).trim()
+  const replaces = before.some(({ value }) => XARGS_REPLACE.some((flag) => value.split("=")[0]!.startsWith(flag)))
+  return program === "xargs" && !replaces ? `${inner} ${XARGS_INPUT}` : inner
 }
 
 /** The spellings one prefix layer below `text`. */

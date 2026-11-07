@@ -1,20 +1,26 @@
 {
-  "name": "opencode-unwrap",
-  "version": "0.1.0",
-  "description": "OpenCode plugin that applies shell permission rules to wrapped commands",
+  "name": "shell-unwrap",
+  "version": "0.2.0",
+  "description": "Applies shell permission rules to wrapped commands, as an OpenCode plugin and a Claude Code hook",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/opencode.ts",
+    "./claude": "./src/claude.ts"
   },
   "scripts": {
-    "check": "tsc --noEmit && bun test",
+    "check": "bun run embed && tsc --noEmit && bun run build && bun test",
     "test": "bun test",
-    "build": "bun build src/index.ts --target bun --outfile dist/opencode-unwrap.js"
+    "embed": "bun scripts/embed-wasm.ts",
+    "build": "bun run embed && bun build src/opencode.ts --target bun --outfile dist/opencode/shell-unwrap.js && bun build src/claude.ts --target bun --outfile dist/claude/shell-unwrap.js"
   },
   "devDependencies": {
     "@opencode/plugin": "2.0.15",
     "@opencode/schema": "2.0.15",
     "@types/bun": "^1.4.2",
+    "tree-sitter-bash": "0.25.1",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "web-tree-sitter": "0.25.10"
   }
 }

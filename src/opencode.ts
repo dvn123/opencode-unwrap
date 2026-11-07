@@ -1,23 +1,6 @@
 import type { Plugin } from "@opencode/plugin"
 import type { Permission } from "@opencode/schema/permission"
-import { explain, review, type Reasons } from "./review.ts"
-
-/**
- * Deny reasons live beside the plugins directory, in `opencode-unwrap.json`
- * as `{"reasons": {"<rule resource>": "<reason>"}}`. They are advice, so a
- * missing or unreadable file leaves them out rather than failing the plugin,
- * which would drop the wrapped-command denies with it.
- */
-async function loadReasons(): Promise<Reasons> {
-  try {
-    const document = await Bun.file(`${import.meta.dir}/../opencode-unwrap.json`).json()
-    const reasons = document?.reasons
-    if (!reasons || typeof reasons !== "object") return {}
-    return Object.fromEntries(Object.entries(reasons).filter(([, reason]) => typeof reason === "string")) as Reasons
-  } catch {
-    return {}
-  }
-}
+import { explain, readReasons, review } from "./review.ts"
 
 /** The fields of OpenCode's `Permission.BlockedError` this plugin reads and sets. */
 interface Blocked {
@@ -28,9 +11,10 @@ interface Blocked {
 }
 
 const plugin: Plugin.Plugin = {
-  id: "opencode-unwrap",
+  id: "shell-unwrap",
   async setup(ctx) {
-    const reasons = await loadReasons()
+    // Deny reasons live beside the plugins directory.
+    const reasons = await readReasons(`${import.meta.dir}/../shell-unwrap.json`)
     // The rules OpenCode itself evaluates: the agent's, then the session's.
     async function rules(sessionID: string, agent?: string): Promise<Permission.Ruleset> {
       const session = await ctx.session.get({ sessionID })

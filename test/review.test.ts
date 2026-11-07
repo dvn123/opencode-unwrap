@@ -7,6 +7,7 @@ const RULES: Permission.Ruleset = [
   { action: "shell", resource: "*", effect: "ask" },
   { action: "shell", resource: "./gradlew *", effect: "allow" },
   { action: "shell", resource: "git status *", effect: "allow" },
+  { action: "shell", resource: "make check", effect: "allow" },
   { action: "shell", resource: "bq *", effect: "allow" },
   { action: "shell", resource: "bq cp *", effect: "ask" },
   { action: "shell", resource: "rm *", effect: "deny" },
@@ -32,7 +33,8 @@ describe("review", () => {
   })
 
   // Only transparent wrappers carry an allow; a path, an assignment, or a
-  // wrapper that changes the command, its arguments, or its user does not.
+  // wrapper that changes the command, its user, or its environment does not.
+  // `xargs` adds arguments, so only a rule that accepts more carries it.
   test.each([
     ["./gradlew build", "allow", "allow"],
     ["timeout 30 git status", "ask", "allow"],
@@ -42,9 +44,11 @@ describe("review", () => {
     ["timeout 30 unknown", "ask", "ask"],
     ["time -o out git status", "ask", "ask"],
     ["/tmp/timeout 30 git status", "ask", "ask"],
-    ["xargs git status", "ask", "ask"],
+    ["xargs -n1 git status", "ask", "allow"],
+    ["xargs make check", "ask", "ask"],
     ["FOO=1 git status", "ask", "ask"],
-    ["env timeout 30 git status", "ask", "ask"],
+    ["env -u HOME timeout 30 git status", "ask", "allow"],
+    ["env FOO=1 git status", "ask", "ask"],
   ] as const)("judges %s from %s to %s", async (command, effect, expected) => {
     expect(await judged(command, effect)).toEqual({ effect: expected, message: undefined, loads: 1 })
   })
@@ -76,7 +80,7 @@ describe("review", () => {
       action: "shell",
       resources: ["nohup rm -rf x"],
       effect: "deny",
-      message: "opencode-unwrap could not load the shell rules: offline",
+      message: "shell-unwrap could not load the shell rules: offline",
     })
   })
 })
