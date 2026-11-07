@@ -1,16 +1,16 @@
-import { spellings, transparent } from "./peel.ts"
-import type { Permission } from "@opencode/schema/permission"
-import { evaluate, matching } from "./rules.ts"
+import { spellings, transparent } from "./peel.ts";
+import type { Permission } from "@opencode/schema/permission";
+import { evaluate, matching } from "./rules.ts";
 
 export interface Evaluation {
-  readonly action: string
-  readonly resources: readonly string[]
-  effect: Permission.Effect
-  message?: string
+  readonly action: string;
+  readonly resources: readonly string[];
+  effect: Permission.Effect;
+  message?: string;
 }
 
 /** Why a shell deny rule exists, by the rule's exact `resource` pattern. */
-export type Reasons = Readonly<Record<string, string>>
+export type Reasons = Readonly<Record<string, string>>;
 
 /**
  * Reads `{"reasons": {"<rule pattern>": "<reason>"}}`. Reasons are advice, so
@@ -19,11 +19,11 @@ export type Reasons = Readonly<Record<string, string>>
  */
 export async function readReasons(path: string): Promise<Reasons> {
   try {
-    const reasons = (await Bun.file(path).json())?.reasons
-    if (!reasons || typeof reasons !== "object") return {}
-    return Object.fromEntries(Object.entries(reasons).filter(([, reason]) => typeof reason === "string")) as Reasons
+    const reasons = (await Bun.file(path).json())?.reasons;
+    if (!reasons || typeof reasons !== "object") return {};
+    return Object.fromEntries(Object.entries(reasons).filter(([, reason]) => typeof reason === "string")) as Reasons;
   } catch {
-    return {}
+    return {};
   }
 }
 
@@ -42,23 +42,23 @@ export async function review(
   rules: () => Promise<Permission.Ruleset>,
   reasons: Reasons = {},
 ): Promise<void> {
-  if (event.action !== "shell" || event.effect === "deny") return
-  const peeled = event.resources.flatMap(spellings)
-  if (peeled.length === 0) return
-  let loaded: Permission.Ruleset
+  if (event.action !== "shell" || event.effect === "deny") return;
+  const peeled = event.resources.flatMap(spellings);
+  if (peeled.length === 0) return;
+  let loaded: Permission.Ruleset;
   try {
-    loaded = await rules()
+    loaded = await rules();
   } catch (cause) {
-    event.effect = "deny"
-    event.message = `shell-unwrap could not load the shell rules: ${cause instanceof Error ? cause.message : cause}`
-    return
+    event.effect = "deny";
+    event.message = `shell-unwrap could not load the shell rules: ${cause instanceof Error ? cause.message : cause}`;
+    return;
   }
-  const denied = peeled.find((spelling) => evaluate(loaded, "shell", spelling) === "deny")
+  const denied = peeled.find((spelling) => evaluate(loaded, "shell", spelling) === "deny");
   if (denied) {
-    event.effect = "deny"
-    event.message = denial(denied, because(loaded, denied, reasons))
+    event.effect = "deny";
+    event.message = denial(denied, because(loaded, denied, reasons));
   } else if (event.effect === "ask" && event.resources.every((resource) => passes(loaded, resource))) {
-    event.effect = "allow"
+    event.effect = "allow";
   }
 }
 
@@ -69,12 +69,12 @@ export async function review(
  * `timeout * bq cp` still asks.
  */
 function passes(rules: Permission.Ruleset, command: string): boolean {
-  if (evaluate(rules, "shell", command) === "allow") return true
+  if (evaluate(rules, "shell", command) === "allow") return true;
   for (let spelling: string | undefined = command; spelling !== undefined; spelling = transparent(spelling)) {
-    const rule = matching(rules, "shell", spelling)
-    if (rule && rule.resource !== "*") return rule.effect === "allow"
+    const rule = matching(rules, "shell", spelling);
+    if (rule && rule.resource !== "*") return rule.effect === "allow";
   }
-  return false
+  return false;
 }
 
 /**
@@ -84,23 +84,19 @@ function passes(rules: Permission.Ruleset, command: string): boolean {
  * resources and deciding rules instead: the first resource whose deciding
  * rule carries a reason names it.
  */
-export function explain(
-  resources: readonly string[],
-  rules: Permission.Ruleset,
-  reasons: Reasons,
-): string | undefined {
+export function explain(resources: readonly string[], rules: Permission.Ruleset, reasons: Reasons): string | undefined {
   for (const resource of resources) {
-    const reason = because(rules, resource, reasons)
-    if (reason) return `\`${resource}\`: ${reason}`
+    const reason = because(rules, resource, reasons);
+    if (reason) return `\`${resource}\`: ${reason}`;
   }
-  return undefined
+  return undefined;
 }
 
 function because(rules: Permission.Ruleset, resource: string, reasons: Reasons): string | undefined {
-  const rule = matching(rules, "shell", resource)
-  return rule?.effect === "deny" ? reasons[rule.resource] : undefined
+  const rule = matching(rules, "shell", resource);
+  return rule?.effect === "deny" ? reasons[rule.resource] : undefined;
 }
 
 export function denial(command: string, reason: string | undefined): string {
-  return `\`${command}\` is denied by the shell rules` + (reason ? `: ${reason}` : "")
+  return `\`${command}\` is denied by the shell rules` + (reason ? `: ${reason}` : "");
 }

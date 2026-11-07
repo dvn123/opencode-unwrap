@@ -8,26 +8,26 @@
  */
 
 interface Word {
-  readonly value: string
-  readonly start: number
-  readonly end: number
+  readonly value: string;
+  readonly start: number;
+  readonly end: number;
 }
 
 interface Wrapper {
   /** Options that consume the next word as their value. */
-  readonly values?: readonly string[]
+  readonly values?: readonly string[];
   /** Positional words between the options and the command. */
-  readonly positionals?: number
+  readonly positionals?: number;
   /** Options that make the wrapper report on the command instead of running it. */
-  readonly lookups?: readonly string[]
+  readonly lookups?: readonly string[];
   /** Accepts `NAME=value` words before the command. */
-  readonly assignments?: boolean
+  readonly assignments?: boolean;
 }
 
-const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*\+?=/
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*\+?=/;
 // A redirect before the command: `> out rm`, `2>&1 rm`. An empty target group
 // means the target is the next word.
-const REDIRECT = /^(?:\d+|&)?(?:>>|>&|>\||<>|<&|>|<)(.*)$/s
+const REDIRECT = /^(?:\d+|&)?(?:>>|>&|>\||<>|<&|>|<)(.*)$/s;
 
 // Option tables follow the GNU and BSD manuals; an unlisted option is taken
 // as a flag without a value.
@@ -48,9 +48,28 @@ const WRAPPERS: Readonly<Record<string, Wrapper>> = {
   sudo: {
     assignments: true,
     values: [
-      "-C", "-D", "-g", "-h", "-p", "-R", "-r", "-T", "-t", "-U", "-u",
-      "--chdir", "--chroot", "--close-from", "--command-timeout", "--group",
-      "--host", "--other-user", "--prompt", "--role", "--type", "--user",
+      "-C",
+      "-D",
+      "-g",
+      "-h",
+      "-p",
+      "-R",
+      "-r",
+      "-T",
+      "-t",
+      "-U",
+      "-u",
+      "--chdir",
+      "--chroot",
+      "--close-from",
+      "--command-timeout",
+      "--group",
+      "--host",
+      "--other-user",
+      "--prompt",
+      "--role",
+      "--type",
+      "--user",
     ],
   },
   time: { values: ["-f", "-o", "--format", "--output"] },
@@ -60,74 +79,89 @@ const WRAPPERS: Readonly<Record<string, Wrapper>> = {
   },
   xargs: {
     values: [
-      "-a", "-d", "-E", "-I", "-J", "-L", "-n", "-P", "-R", "-S", "-s",
-      "--arg-file", "--delimiter", "--max-args", "--max-chars", "--max-lines",
-      "--max-procs", "--process-slot-var",
+      "-a",
+      "-d",
+      "-E",
+      "-I",
+      "-J",
+      "-L",
+      "-n",
+      "-P",
+      "-R",
+      "-S",
+      "-s",
+      "--arg-file",
+      "--delimiter",
+      "--max-args",
+      "--max-chars",
+      "--max-lines",
+      "--max-procs",
+      "--process-slot-var",
     ],
   },
-}
+};
 
 /** Splits one command into words, honouring quotes and backslashes. */
 export function words(text: string): Word[] {
-  const found: Word[] = []
-  let index = 0
+  const found: Word[] = [];
+  let index = 0;
   while (index < text.length) {
-    while (index < text.length && /\s/.test(text[index]!)) index++
-    if (index >= text.length) break
-    const start = index
-    let value = ""
+    while (index < text.length && /\s/.test(text[index]!)) index++;
+    if (index >= text.length) break;
+    const start = index;
+    let value = "";
     while (index < text.length && !/\s/.test(text[index]!)) {
-      const char = text[index]!
+      const char = text[index]!;
       if (char === "'") {
-        const close = text.indexOf("'", index + 1)
-        const stop = close === -1 ? text.length : close
-        value += text.slice(index + 1, stop)
-        index = stop + 1
+        const close = text.indexOf("'", index + 1);
+        const stop = close === -1 ? text.length : close;
+        value += text.slice(index + 1, stop);
+        index = stop + 1;
       } else if (char === '"') {
-        index++
+        index++;
         while (index < text.length && text[index] !== '"') {
-          if (text[index] === "\\" && index + 1 < text.length) index++
-          value += text[index]
-          index++
+          if (text[index] === "\\" && index + 1 < text.length) index++;
+          value += text[index];
+          index++;
         }
-        index++
+        index++;
       } else if (char === "\\" && index + 1 < text.length) {
-        value += text[index + 1]
-        index += 2
+        value += text[index + 1];
+        index += 2;
       } else {
-        value += char
-        index++
+        value += char;
+        index++;
       }
     }
-    found.push({ value, start, end: Math.min(index, text.length) })
+    found.push({ value, start, end: Math.min(index, text.length) });
   }
-  return found
+  return found;
 }
 
 export function basename(program: string): string {
-  return program.slice(program.lastIndexOf("/") + 1)
+  return program.slice(program.lastIndexOf("/") + 1);
 }
 
 /** The index of the command a wrapper runs, or undefined when it runs none. */
 function wrapped(list: readonly Word[], wrapper: Wrapper): number | undefined {
-  let index = 1
-  let positionals = wrapper.positionals ?? 0
+  let index = 1;
+  let positionals = wrapper.positionals ?? 0;
   while (index < list.length) {
-    const value = list[index]!.value
-    if (value === "--") return index + 1 < list.length ? index + 1 : undefined
-    if (wrapper.lookups?.includes(value)) return undefined
+    const value = list[index]!.value;
+    if (value === "--") return index + 1 < list.length ? index + 1 : undefined;
+    if (wrapper.lookups?.includes(value)) return undefined;
     if (value.startsWith("-") && value !== "-") {
-      index += wrapper.values?.includes(value) ? 2 : 1
+      index += wrapper.values?.includes(value) ? 2 : 1;
     } else if (wrapper.assignments && ASSIGNMENT.test(value)) {
-      index++
+      index++;
     } else if (positionals > 0) {
-      positionals--
-      index++
+      positionals--;
+      index++;
     } else {
-      return index
+      return index;
     }
   }
-  return undefined
+  return undefined;
 }
 
 // Wrappers that change only when, how, or with how much environment the
@@ -147,27 +181,45 @@ const TRANSPARENT: Readonly<Record<string, readonly string[]>> = {
   time: ["-p"],
   timeout: ["-k", "--kill-after", "-s", "--signal", "--foreground", "--preserve-status", "-v", "--verbose"],
   xargs: [
-    "-0", "-d", "-E", "-I", "-J", "-L", "-n", "-P", "-r", "-s", "-t", "-x",
-    "--delimiter", "--exit", "--max-args", "--max-chars", "--max-lines",
-    "--max-procs", "--no-run-if-empty", "--null", "--verbose",
+    "-0",
+    "-d",
+    "-E",
+    "-I",
+    "-J",
+    "-L",
+    "-n",
+    "-P",
+    "-r",
+    "-s",
+    "-t",
+    "-x",
+    "--delimiter",
+    "--exit",
+    "--max-args",
+    "--max-chars",
+    "--max-lines",
+    "--max-procs",
+    "--no-run-if-empty",
+    "--null",
+    "--verbose",
   ],
-}
+};
 // A wrapper named by path runs only from a system directory: `/tmp/timeout`
 // could be anything.
-const SYSTEM_DIRS = ["", "/bin/", "/usr/bin/"]
+const SYSTEM_DIRS = ["", "/bin/", "/usr/bin/"];
 // `xargs` appends what it reads to the command unless it substitutes it, so
 // the command it runs must pass with one more argument than it was written
 // with: an exact rule must not carry it.
-const XARGS_INPUT = "<xargs-input>"
-const XARGS_REPLACE = ["-I", "-J", "--replace"]
+const XARGS_INPUT = "<xargs-input>";
+const XARGS_REPLACE = ["-I", "-J", "--replace"];
 
 /** Whether a word before the wrapped command keeps the wrapper transparent. */
 function permitted(value: string, options: readonly string[]): boolean {
-  if (value === "--") return true
-  if (!value.startsWith("-")) return !ASSIGNMENT.test(value)
-  if (options.includes(value.split("=")[0]!)) return true
+  if (value === "--") return true;
+  if (!value.startsWith("-")) return !ASSIGNMENT.test(value);
+  if (options.includes(value.split("=")[0]!)) return true;
   // A short option with its value joined: `-n1`, `-oL`, `-uNAME`.
-  return !value.startsWith("--") && value.length > 2 && options.includes(value.slice(0, 2))
+  return !value.startsWith("--") && value.length > 2 && options.includes(value.slice(0, 2));
 }
 
 /**
@@ -175,65 +227,65 @@ function permitted(value: string, options: readonly string[]): boolean {
  * start with one or passes it an option outside its table.
  */
 export function transparent(command: string): string | undefined {
-  const text = command.trim()
-  const list = words(text)
-  const head = list[0]
-  if (!head || text.slice(head.start, head.end) !== head.value) return undefined
-  const program = basename(head.value)
-  const options = TRANSPARENT[program]
-  if (!options || !SYSTEM_DIRS.includes(head.value.slice(0, head.value.length - program.length))) return undefined
-  const index = wrapped(list, WRAPPERS[program]!)
-  if (index === undefined) return undefined
-  const before = list.slice(1, index)
-  if (!before.every(({ value }) => permitted(value, options))) return undefined
-  const inner = text.slice(list[index]!.start).trim()
-  const replaces = before.some(({ value }) => XARGS_REPLACE.some((flag) => value.split("=")[0]!.startsWith(flag)))
-  return program === "xargs" && !replaces ? `${inner} ${XARGS_INPUT}` : inner
+  const text = command.trim();
+  const list = words(text);
+  const head = list[0];
+  if (!head || text.slice(head.start, head.end) !== head.value) return undefined;
+  const program = basename(head.value);
+  const options = TRANSPARENT[program];
+  if (!options || !SYSTEM_DIRS.includes(head.value.slice(0, head.value.length - program.length))) return undefined;
+  const index = wrapped(list, WRAPPERS[program]!);
+  if (index === undefined) return undefined;
+  const before = list.slice(1, index);
+  if (!before.every(({ value }) => permitted(value, options))) return undefined;
+  const inner = text.slice(list[index]!.start).trim();
+  const replaces = before.some(({ value }) => XARGS_REPLACE.some((flag) => value.split("=")[0]!.startsWith(flag)));
+  return program === "xargs" && !replaces ? `${inner} ${XARGS_INPUT}` : inner;
 }
 
 /** The spellings one prefix layer below `text`. */
 function peelOnce(text: string): string[] {
-  const list = words(text)
-  const head = list[0]
-  if (!head) return []
-  const raw = text.slice(head.start, head.end)
-  const redirect = REDIRECT.exec(raw)
+  const list = words(text);
+  const head = list[0];
+  if (!head) return [];
+  const raw = text.slice(head.start, head.end);
+  const redirect = REDIRECT.exec(raw);
   if (redirect) {
-    const next = list[redirect[1] ? 1 : 2]
-    return next ? [text.slice(next.start)] : []
+    const next = list[redirect[1] ? 1 : 2];
+    return next ? [text.slice(next.start)] : [];
   }
-  if (ASSIGNMENT.test(head.value)) return list[1] ? [text.slice(list[1].start)] : []
-  const found: string[] = []
+  if (ASSIGNMENT.test(head.value)) return list[1] ? [text.slice(list[1].start)] : [];
+  const found: string[] = [];
   // `/bin/rm`, `\rm`, and `"rm"` all run `rm`.
-  const program = basename(head.value)
-  if (program && program !== raw) found.push(program + text.slice(head.end))
-  const wrapper = WRAPPERS[program]
+  const program = basename(head.value);
+  if (program && program !== raw) found.push(program + text.slice(head.end));
+  const wrapper = WRAPPERS[program];
   if (wrapper) {
-    const index = wrapped(list, wrapper)
-    if (index !== undefined) found.push(text.slice(list[index]!.start))
+    const index = wrapped(list, wrapper);
+    if (index !== undefined) found.push(text.slice(list[index]!.start));
     // `env -S 'rm -rf x'` runs its split string as the command.
     if (program === "env") {
-      const split = list.findIndex((word) => word.value === "-S" || word.value === "--split-string")
-      const payload = split > 0 ? list[split + 1] : undefined
-      if (payload) found.push(payload.value + text.slice(payload.end))
+      const split = list.findIndex((word) => word.value === "-S" || word.value === "--split-string");
+      const payload = split > 0 ? list[split + 1] : undefined;
+      if (payload) found.push(payload.value + text.slice(payload.end));
     }
   }
-  return found.map((spelling) => spelling.trim()).filter(Boolean)
+  return found.map((spelling) => spelling.trim()).filter(Boolean);
 }
 
 /** Every distinct peeled spelling of `command`, excluding the command itself. */
 export function spellings(command: string): string[] {
-  const original = command.trim()
-  const seen = new Set([original])
-  const pending = [original]
+  const original = command.trim();
+  const seen = new Set([original]);
+  const pending = [original];
   while (pending.length > 0) {
     for (const spelling of peelOnce(pending.pop()!)) {
       if (!seen.has(spelling)) {
-        seen.add(spelling)
-        pending.push(spelling)
+        seen.add(spelling);
+        pending.push(spelling);
       }
     }
   }
-  seen.delete(original)
-  return [...seen]
+  seen.delete(original);
+  return [...seen];
 }
