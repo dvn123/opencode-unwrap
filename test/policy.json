@@ -30,7 +30,8 @@
       "Read(//**/.env)",
       "Edit(//**/.env)",
       "Read(~/.ssh/**)",
-      "Bash(*SECRET_TOKEN*)"
+      "Bash(*SECRET_TOKEN*)",
+      "Bash(rg * --pre *)"
     ],
     "additionalDirectories": [
       "{extra}"

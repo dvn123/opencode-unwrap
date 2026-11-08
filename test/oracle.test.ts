@@ -93,6 +93,9 @@ const HIDE: Record<string, (word: string) => string | undefined> = {
   "zsh-split": (w) => `\${=:-${w}}`,
   "zsh-flag": (w) => `\${(L):-${w}}`,
   "zsh-glob-subst": (w) => `\${~:-${w}}`,
+  // A literal start does not keep the word whole when its run-time part splits.
+  "prefix-cmd-subst": (w) => `x$(echo ' ${w}')`,
+  "prefix-zsh-split": (w) => `x\${=:- ${w}}`,
 };
 
 // Ways to set a variable `v` to the word before the command uses `$v`.

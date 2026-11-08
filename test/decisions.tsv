@@ -120,6 +120,20 @@ text	echo exit=$?	allow
 text	echo $SECRET_TOKEN	deny	
 text	x=$SECRET_TOKEN; echo $x	deny	
 text	export X=$SECRET_TOKEN	deny	
+# A word that starts with literal text other than `-` and cannot split, a
+# glob like `src/*` or a plain `src/$f`, expands only to words that start
+# with that text, so no option deny such as `rg * --pre *` can match it. A
+# bare glob or value, an unquoted $(…), or a word starting `-` still may.
+inside	rg -n x src/*.ts	allow	
+inside	rg -n x src/$f	allow	
+inside	rg -n x "src/$(ls)"	allow	
+inside	rg -n x *	abstain	may match
+inside	rg -n x $f	abstain	may match
+inside	rg -n x src/$(ls)	abstain	may match
+inside	rg -n x src/${f:-x}	abstain	may match
+inside	rg -n x --glob=src/*	abstain	may match
+inside	git p* origin	abstain	may match
+inside	timeout 5 r* -rf x	abstain	may match
 # A redirect reads or writes a file, judged by the Read and Edit rules: a
 # write needs an Edit allow, a read an allow or a working directory, and a
 # matching deny or ask decides the command.
