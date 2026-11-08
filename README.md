@@ -105,6 +105,23 @@ reason; one that matches only some values, as a guard does for
 Claude, since only run time can tell. A command is allowed only when an allow
 rule matches every value and no guard matches any.
 
+Some run-time text cannot reach every part of a rule, and the guards' "may
+match" test knows it. A word that cannot split and starts with literal text
+other than `-` keeps its run-time part inside that one argument: `src/*`
+expands only to names that start `src/`, so `rg -n x src/*.py` cannot meet
+`rg * --pre *`. A bare `$f` stays any text, since it may be an option such as
+`-XPOST` that a rule matches only once spelled out. Git reads settings only
+from `-c` and `--config-env` before its subcommand, from `git config`, and
+from a transport URL, so a rule about text inside a word (`git*core.pager*`,
+`git -* config*alias.*`) cannot be met by a value after any other literal
+subcommand: `git diff $M..HEAD` is allowed, `git -c $x diff` is not. A rule
+starting with `*` is about the script's text, such as a variable it names,
+which no value adds, so it is judged on the text and on every assignment and
+`export` in it. Git started in a directory shaped like a bare repository
+(HEAD with objects and refs, or a `commondir`) asks, since that directory's
+config runs commands; git whose directory is decided at run time stays with
+Claude.
+
 A redirect reads or writes a file, and the `Read(...)` and `Edit(...)` rules
 judge it as Claude judges its own file tools: `//path` is absolute, `~/path`
 is under the home directory, `/path` is beside the settings file, and a bare
@@ -113,17 +130,20 @@ read a Read allow or a working directory, and a deny or ask decides the
 command; a deny or ask is matched ignoring case and, when it names no
 directory, at any depth, so it catches every file it could mean. A relative
 path is resolved through the `cd`s before it, and a `cd` that may not run, or
-runs in a subshell, leaves later relative paths to Claude. Paths are judged as
+runs in a subshell, leaves later relative paths to Claude. A `cd` to a known
+directory needs a `cd` allow rule and is allowed anywhere: what runs there is
+judged as usual, relative paths against it. Paths are judged as
 written and with their symlinks resolved when the hook runs; a file replaced
 by a symlink after that is the race every allowed write already has. It leaves to Claude, by
 printing nothing, anything whose effect it cannot bound: zsh parameter flags
 (`${(e)x}`), indirection, arithmetic, `=cmd` and `~[dir]` expansion,
 `print -P` (prompt substitution runs `$(...)`), assignments outside a command,
 a loop, `read`, `printf -v` or `print -v` that sets an exported or zsh-special
-variable (`path`, `EDITOR`), builtins that change the shell (`setopt`, `eval`,
-`trap`), redirects to run-time paths, `tee`, `find` actions, `fd -x`, `cd` to a run-time or
-outside directory or beside `git`, function definitions, dynamic program
-names, and control or Unicode blank characters.
+variable (`path`, `EDITOR`), builtins that change the shell (`eval`, `trap`,
+and `setopt` or `export` beyond error handling, tracing and harmless
+variables such as `GIT_OPTIONAL_LOCKS=0`), redirects to run-time paths, `tee`,
+`find` actions, `fd -x`, `cd` to a run-time directory, function definitions,
+dynamic program names, and control or Unicode blank characters.
 
 The analysis assumes the zsh Claude Code runs on macOS: EXTENDED_GLOB,
 MAGIC_EQUAL_SUBST, KSH_GLOB, BARE_GLOB_QUAL, GLOB_SUBST, IGNORE_BRACES and

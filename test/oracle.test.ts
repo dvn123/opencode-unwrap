@@ -159,6 +159,10 @@ function cases(): [string, string][] {
     ["state: cd var", "cd $HOME && ls"],
     ["constant: home", "ls $HOME ${HOME}/x"],
     ["constant: user", "git log --author=$USER"],
+    ["git-boundary: after subcommand", "git log $(echo -c core.pager=less)"],
+    ["git-boundary: before subcommand", "git $(echo -c core.pager=less) log"],
+    ["git-boundary: config", "git config $(echo core.pager less)"],
+    ["git-boundary: path", "d=$(echo x); git -C $d -c core.pager=less log"],
     ["loop: rebound", "for v in status; do for v in clean; do true; done; git $v -fd; done"],
     ["loop: read", "for v in status; do read -r v <<< clean; git $v -fd; done"],
     ["loop: literal", "for v in status log; do git $v; done"],
@@ -237,6 +241,30 @@ function readings(argv: string[]): string[] {
   return [argv.join(" "), split.join(" ")];
 }
 
+
+// Git reads settings only from -c and --config-env before its subcommand,
+// from `git config`, and from a transport URL. A rule about text inside a word
+// (`git*core.pager*`) is therefore met only by the words up to the subcommand,
+// unless that subcommand reads its arguments; the hook judges the same way.
+const GIT_TAKES_VALUE = ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"];
+const GIT_READS_ARGUMENTS = ["config", "clone", "fetch", "pull", "push", "ls-remote", "remote", "submodule", "archive"];
+
+function isTextRule(pattern: string): boolean {
+  return pattern.split(" ").some((token) => token !== "*" && token !== "-*" && token.includes("*"));
+}
+
+/** The words a rule reads: for a git text rule, those up to the subcommand. */
+function ruleWords(pattern: string, argv: string[]): string[] {
+  if (argv[0] !== "git" || !isTextRule(pattern)) return argv;
+  let index = 1;
+  while (index < argv.length && argv[index]!.startsWith("-")) index += GIT_TAKES_VALUE.includes(argv[index]!) ? 2 : 1;
+  if (index >= argv.length || GIT_READS_ARGUMENTS.includes(argv[index]!)) return argv;
+  return argv.slice(0, index + 1);
+}
+
+function meets(pattern: string, argv: string[]): boolean {
+  return readings(ruleWords(pattern, argv)).some((text) => globMatches(pattern, text));
+}
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 /** Every program zsh ran for `script`, as argv lists. */

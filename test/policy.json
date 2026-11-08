@@ -11,7 +11,9 @@
       "Bash(fd *)",
       "Bash(head *)",
       "Edit(**)",
-      "Edit(//tmp/**)"
+      "Edit(//tmp/**)",
+      "Bash(setopt pipefail)",
+      "Bash(cd *)"
     ],
     "ask": [
       "Bash(git push *)",
@@ -31,7 +33,11 @@
       "Edit(//**/.env)",
       "Read(~/.ssh/**)",
       "Bash(*SECRET_TOKEN*)",
-      "Bash(rg * --pre *)"
+      "Bash(rg * --pre *)",
+      "Bash(git*core.pager*)",
+      "Bash(git*ext::*)",
+      "Bash(git config*alias.*)",
+      "Bash(git -* config*alias.*)"
     ],
     "additionalDirectories": [
       "{extra}"

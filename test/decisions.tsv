@@ -71,7 +71,7 @@ zsh	TMPPREFIX=/tmp/x; ls	abstain	assignment to TMPPREFIX
 # fixed for the whole script.
 zsh	echo =ls	allow	
 constant	ls $HOME	allow	
-constant	cd $HOME && ls	abstain	outside the working directories
+constant	cd $HOME && ls	allow	
 # A loop over literal words binds its variable to each in turn; a name
 # another loop or `read` sets stays any text.
 loop	for f in a b; do rg -n x $f; done	allow	
@@ -89,10 +89,11 @@ assignment	ls && M=-XGET; gh api $M repos/x	abstain	may match
 assignment	M=-XGET; M=-XPOST; gh api $M repos/x	abstain	may match
 assignment	(M=-XGET); gh api $M repos/x	abstain	may match
 assignment	M=$(ls); gh api $M repos/x	abstain	may match
-# cd keeps commands in the working directories.
+# cd to a known directory moves where later commands, redirects and git run.
 cd	(cd {extra} && ls)	allow	
 cd	cd {extra} && rg -n x	allow	
-cd	cd / && ls	abstain	outside the working directories
+cd	cd / && ls	allow	
+cd	cd / && echo x > y.txt	abstain	no Edit rule allows
 cd	cd - && ls	abstain	run-time directory
 cd	cd -P {extra} && ls	abstain	cd with options
 # git, after cd or with -C, takes a directory shaped like a bare repository
@@ -112,7 +113,7 @@ git	cd dotgit && git status	ask	bare repository
 git	cd bare/work && git status	allow	
 git	cd bare && git clean -fd	deny	
 git	(cd bare); git status	abstain	git from a run-time directory
-git	git -C $d status	abstain	may match
+git	git -C $d status	abstain	run-time -C
 # A rule that starts with `*` is about the script's text, such as a variable
 # it names, which no run-time value adds; a bare assignment is text too.
 text	echo $x	allow	
@@ -134,6 +135,25 @@ inside	rg -n x src/${f:-x}	abstain	may match
 inside	rg -n x --glob=src/*	abstain	may match
 inside	git p* origin	abstain	may match
 inside	timeout 5 r* -rf x	abstain	may match
+# Git reads settings only from -c and --config-env before its subcommand,
+# from `git config`, and from a transport URL, so a text rule such as
+# `git*core.pager*` cannot be met by a value after another literal
+# subcommand. A rule about the subcommand's own
+# options (`git rebase -i *`) still may be.
+git-text	git diff $M..HEAD	allow	
+git-text	git -C "$r" diff x	abstain	run-time -C
+git-text	git -c $x diff	abstain	may match
+git-text	git config $k $v	abstain	may match
+git-text	git fetch $u	abstain	may match
+git-text	git rebase $x	abstain	may match
+git-text	git diff --output=$f	allow	
+# An `export` of harmless variables to literal values changes nothing a rule
+# decides; `setopt` of the options a plain `set` may change neither.
+shell	export GIT_OPTIONAL_LOCKS=0; git status	allow	
+shell	export PATH=/tmp; ls	abstain	export of PATH
+shell	local x=1; ls	abstain	local declaration
+shell	setopt pipefail; ls	allow	
+shell	setopt extendedglob; ls	abstain	setopt changes the shell
 # A redirect reads or writes a file, judged by the Read and Edit rules: a
 # write needs an Edit allow, a read an allow or a working directory, and a
 # matching deny or ask decides the command.
