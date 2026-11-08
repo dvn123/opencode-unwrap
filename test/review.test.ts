@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { Permission } from "@opencode/schema/permission";
-import { explain, review, type Evaluation } from "../src/review.ts";
-import { match } from "../src/rules.ts";
+import { join } from "node:path";
+import { type Evaluation, explain, review } from "../src/opencode.ts";
+
+// The plugin asks the built binary, as it does once installed.
+const BINARY = join(import.meta.dir, "../dist/hook/shell-unwrap");
 
 const RULES: Permission.Ruleset = [
   { action: "shell", resource: "*", effect: "ask" },
@@ -16,10 +19,11 @@ const RULES: Permission.Ruleset = [
 async function judged(command: string, effect: Permission.Effect, action = "shell") {
   const event: Evaluation = { action, resources: [command], effect };
   let loads = 0;
-  await review(event, async () => {
+  const rules = async () => {
     loads++;
     return RULES;
-  });
+  };
+  await review(event, rules, {}, BINARY);
   return { effect: event.effect, message: event.message, loads };
 }
 
@@ -54,13 +58,18 @@ describe("review", () => {
     // An ask reached through a peel asks, however the raw text was judged.
     ["xargs -n1 bq cp a b", "allow", "ask"],
     ["xargs -n1 bq ls", "allow", "allow"],
+    // An allow is carried only where zsh fixes every word, and zsh's reading,
+    // quoting removed, meets the rules too.
+    ["timeout 30 git status $X", "ask", "ask"],
+    ["timeout 30 git status $(ls)", "ask", "ask"],
+    ['bq "cp" a b', "allow", "ask"],
   ] as const)("judges %s from %s to %s", async (command, effect, expected) => {
     expect(await judged(command, effect)).toEqual({ effect: expected, message: undefined, loads: 1 });
   });
 
   test("allows only when every resource passes", async () => {
     const event: Evaluation = { action: "shell", resources: ["timeout 30 git status", "unknown"], effect: "ask" };
-    await review(event, async () => RULES);
+    await review(event, async () => RULES, {}, BINARY);
     expect(event.effect).toBe("ask");
   });
 
@@ -78,9 +87,10 @@ describe("review", () => {
 
   test("fails closed when the rules cannot load", async () => {
     const event: Evaluation = { action: "shell", resources: ["nohup rm -rf x"], effect: "allow" };
-    await review(event, async () => {
+    const offline = async (): Promise<Permission.Ruleset> => {
       throw new Error("offline");
-    });
+    };
+    await review(event, offline, {}, BINARY);
     expect(event).toEqual({
       action: "shell",
       resources: ["nohup rm -rf x"],
@@ -95,7 +105,7 @@ describe("reasons", () => {
 
   async function reasoned(command: string, effect: Permission.Effect) {
     const event: Evaluation = { action: "shell", resources: [command], effect };
-    await review(event, async () => RULES, REASONS);
+    await review(event, async () => RULES, REASONS, BINARY);
     return { effect: event.effect, message: event.message };
   }
 
@@ -111,24 +121,12 @@ describe("reasons", () => {
     [["rm -rf x"], "`rm -rf x`: use `trash`"],
     [["git status", "rm x"], "`rm x`: use `trash`"],
     [["git status"], undefined],
-  ])("explains %p", (resources, expected) => {
-    expect(explain(resources, RULES, REASONS)).toBe(expected);
+  ])("explains %p", async (resources, expected) => {
+    expect(await explain(resources, RULES, REASONS, BINARY)).toBe(expected);
   });
 
   // Only the deciding rule's reason applies.
-  test("names no reason a deny rule does not carry", () => {
-    expect(explain(["rm -rf x"], RULES, { "git status *": "unused" })).toBeUndefined();
+  test("names no reason a deny rule does not carry", async () => {
+    expect(await explain(["rm -rf x"], RULES, { "git status *": "unused" }, BINARY)).toBeUndefined();
   });
-});
-
-// OpenCode's `Wildcard.match`, ported.
-test.each([
-  ["rm *", "rm", true],
-  ["rm *", "rm -rf x", true],
-  ["rm *", "rmdir x", false],
-  ["git * push *", "git -C repo push origin", true],
-  ["a?c", "abc", true],
-  ["*.env", "dir\\.env", true],
-])("%s against %s is %p", (pattern, input, expected) => {
-  expect(match(input, pattern)).toBe(expected);
 });

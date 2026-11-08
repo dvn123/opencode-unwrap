@@ -117,14 +117,20 @@
   ],
   "xargs -0 -P 4 rm -rf": [
     "rm -rf",
+    "rm -rf <xargs-input>",
+    "rm -r -f <xargs-input>",
     "rm -r -f"
   ],
   "xargs -I {} rm -rf {}": [
     "rm -rf {}",
+    "rm -rf <xargs-input>",
+    "rm -r -f <xargs-input>",
     "rm -r -f {}"
   ],
   "xargs -J % rm -rf %": [
     "rm -rf %",
+    "rm -rf <xargs-input>",
+    "rm -r -f <xargs-input>",
     "rm -r -f %"
   ],
   "nohup nice -n 5 FOO=1 /bin/rm -rf x": [
@@ -148,7 +154,8 @@
     "gh api --method POST repos/x"
   ],
   "xargs -n1 -0 rm": [
-    "rm"
+    "rm",
+    "rm <xargs-input>"
   ],
   "git commit -m \"-fu\"": [],
   "fd -extra": [],

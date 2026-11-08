@@ -1,0 +1,138 @@
+# The Claude hook's decisions under test/policy.json, one case per row:
+# group, command, decision (allow, ask, deny, or abstain to leave it to
+# Claude), and an optional fragment of the deny or ask message, or of why
+# the case is left to Claude. In the command, \n and \t stand for a newline
+# and a tab, {extra} for the additional working directory, and {root} for
+# the session's working directory.
+group	command	decision	fragment
+# Commands the rules allow as written, or through transparent wrappers.
+plain	git status	allow	
+plain	rg x 2>&1 | head -5	allow	
+wrapper	env -u TOKEN rg x	allow	
+wrapper	env A=1 rg x	abstain	no allow rule
+wrapper	timeout -k 5 30 rg x	allow	
+wrapper	/usr/bin/time -p rg x	allow	
+wrapper	env -u HOME timeout 30 git status	allow	
+wrapper	xargs -n1 git status	allow	
+wrapper	fd x | xargs -n1 wc -l	allow	
+wrapper	fd -x wc -l {}	abstain	runs or writes by its arguments
+prefix	GIT_EDITOR=true git status	allow	
+prefix	NO_COLOR=1 LANG=C.UTF-8 git status	allow	
+prefix	NO_COLOR=$X git status	abstain	
+prefix	ANTHROPIC_API_KEY=x git status	abstain	
+prefix	GIT_PAGER=cat git status	abstain	
+# Guards on every command as written, however wrapped or hidden.
+guard	rm -rf build	deny	`rm -rf build` is denied by the shell rules: use trash
+guard	timeout 5 rm build	deny	`rm build` is denied by the shell rules: use trash
+guard	FOO=1 /bin/rm build	deny	`rm build` is denied by the shell rules: use trash
+guard	find . -delete	deny	`find . -delete` is denied by the shell rules
+guard	echo $(rm build)	deny	
+guard	fd x | xargs -n1 rm	deny	
+guard	ls > out.txt; xargs -0 rm < list	deny	
+guard	if true; then xargs -n1 rm	deny	
+guard	if true; then	abstain	
+guard	git -C {extra} clean -fd	deny	
+guard	git -c core.pager=cat --no-pager clean -fd	deny	
+guard	gh api -XPOST repos/x	deny	
+guard	gh api --method=POST repos/x	deny	
+guard	git rebase -ix main	deny	
+guard	python3 - <<'EOF'\nprint(1)\nEOF	deny	write a script
+guard	git push origin main	ask	needs approval
+guard	git -C {extra} push origin main	ask	
+guard	fd x | xargs -n1 git push	ask	
+guard	python3 script.py	abstain	no allow rule
+# Quoting is removed before the rules see a word.
+quoting	git "status"	allow	
+quoting	gh api -X 'POST' repos/x	deny	
+quoting	gh api -X $'\x50OST' repos/x	deny	
+quoting	gh api -X P\OST repos/x	deny	
+# A run-time value is any text: it carries an allow only where the rule's
+# wildcard covers it and no guard could match it.
+dynamic	echo $(git status --short)	allow	
+dynamic	git status $(echo x) ${X:-y} *.md	allow	
+dynamic	git diff "$(git status)"	allow	
+dynamic	git push ${X:---force}	ask	
+dynamic	gh api ${X:--XPOST} repos/x	abstain	may match
+dynamic	echo -XPOST | xargs gh api	abstain	may match
+dynamic	echo repos/x | xargs -I{} gh api -X{} repos/x	abstain	may match
+dynamic	$program status	abstain	dynamic program
+dynamic	read -r f <<< -XPOST; gh api $f repos/x	abstain	no allow rule
+# zsh decides these itself, so they stay with Claude: a parameter flag,
+# prompt substitution, a loop over a variable the shell or a program reads,
+# a function, and a statement that sets the shell's search path.
+zsh	echo ${(e)X}	abstain	
+zsh	print -P '$(git status)'	abstain	
+zsh	for path in /tmp; do git status; done	abstain	assignment to path
+zsh	for EDITOR in x; do git status; done	abstain	
+zsh	f() { ls; }; f	abstain	
+zsh	PATH=/tmp; git status	abstain	assignment to PATH
+zsh	TMPPREFIX=/tmp/x; ls	abstain	assignment to TMPPREFIX
+# EQUALS expansion is a command's path, and $HOME, $USER and $LOGNAME are
+# fixed for the whole script.
+zsh	echo =ls	allow	
+constant	ls $HOME	allow	
+constant	cd $HOME && ls	abstain	outside the working directories
+# A loop over literal words binds its variable to each in turn; a name
+# another loop or `read` sets stays any text.
+loop	for f in a b; do rg -n x $f; done	allow	
+loop	for f in a b; do gh api repos/$f; done	allow	
+loop	for m in -XPOST; do gh api $m repos/x; done	deny	`gh api -X POST repos/x` is denied
+loop	for r in origin upstream; do git push $r main; done	ask	
+loop	for v in -XGET; do for v in -XPOST; do echo; done; gh api $v repos/x; done	abstain	may match
+loop	for v in -XGET; do echo -XPOST | read -r v; gh api $v repos/x; done	abstain	
+# A literal assignment that always runs, and is the only one, fixes the
+# value; one that may be skipped, repeated, or kept in a subshell does not.
+assignment	M=-XPOST; gh api $M repos/x	deny	
+assignment	M=-XPOST && gh api $M repos/x	deny	
+assignment	S={extra}; cd $S && ls	allow	
+assignment	ls && M=-XGET; gh api $M repos/x	abstain	may match
+assignment	M=-XGET; M=-XPOST; gh api $M repos/x	abstain	may match
+assignment	(M=-XGET); gh api $M repos/x	abstain	may match
+assignment	M=$(ls); gh api $M repos/x	abstain	may match
+# cd keeps commands in the working directories, and away from git.
+cd	(cd {extra} && ls)	allow	
+cd	cd {extra} && rg -n x	allow	
+cd	cd {extra} && git status	abstain	beside git
+cd	cd / && ls	abstain	outside the working directories
+cd	cd - && ls	abstain	run-time directory
+# A redirect reads or writes a file, judged by the Read and Edit rules: a
+# write needs an Edit allow, a read an allow or a working directory, and a
+# matching deny or ask decides the command.
+redirect	rg x > out.txt	allow	
+redirect	rg x >> log.txt 2>&1	allow	
+redirect	rg x &> out.txt	allow	
+redirect	> out.txt	allow	
+redirect	rg x < in.txt	allow	
+redirect	echo x > /dev/stderr	allow	
+redirect	cd {extra} && echo x > y.txt	allow	
+redirect	echo x > .env	deny	is denied by `Edit(//**/.env)`
+redirect	echo x > sub/.ENV	deny	Edit(//**/.env)
+redirect	wc -l < ~/.ssh/id_ed25519	deny	Read(~/.ssh/**)
+redirect	echo x > yarn.lock	ask	needs approval
+redirect	echo x > /etc/hosts	abstain	no Edit rule allows
+redirect	wc -l < /etc/hosts	abstain	no Read rule allows
+redirect	echo x > $f	abstain	run-time path
+redirect	echo x > out-*.txt	abstain	run-time path
+redirect	(cd {extra}); echo x > ../escape.txt	abstain	run-time directory
+redirect	ls | tee out.txt	abstain	runs or writes by its arguments
+# Symlinks: the file the shell opens is judged. `escape` leads outside every
+# allowed tree, `inner` into the extra working directory, and `env-link` is
+# a dangling link to .env that writing through would create. /tmp is
+# /private/tmp on macOS.
+redirect	echo x > /tmp/shell-unwrap-table.txt	allow	
+redirect	echo x > escape/f.txt	abstain	no Edit rule allows
+redirect	echo x > inner/f.txt	allow	
+redirect	echo x > env-link	deny	Edit(//**/.env)
+# Arithmetic over numbers, and variables bound to numbers, is only a number;
+# zsh evaluates a variable's value as math too, so an unknown one, or an
+# operator that assigns, stays with Claude.
+arithmetic	echo $((3 * 4))	allow	
+arithmetic	for i in 1 2; do echo $((i + 1)); done	allow	
+arithmetic	ls | wc -l; echo ${pipestatus[1]}	allow	
+arithmetic	echo ${HOME:0:5}	allow	
+arithmetic	(( 2 > 1 )) && ls	allow	
+arithmetic	echo $((x))	abstain	not known to be a number
+arithmetic	read -r n; echo $((n + 1))	abstain	
+arithmetic	echo $((i = 2))	abstain	arithmetic assignment
+arithmetic	(( i++ ))	abstain	arithmetic assignment
+arithmetic	echo ${a[$(ls)]}	abstain	

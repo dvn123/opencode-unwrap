@@ -25,6 +25,10 @@ const CASES: [string, boolean][] = [
   ["curl -sS https://example.com", false],
   ["echo $(rm build)", true],
   ["if true; then rm x", true],
+  // What zsh fixes before it runs decides too: a literal loop or assignment.
+  ["for f in --force; do git -C repo push $f origin main; done", true],
+  ["F=--force; git push $F origin main", true],
+  ["git push ${X:---force} origin main", false],
 ];
 
 let installed: string;
@@ -41,7 +45,7 @@ beforeAll(() => {
 });
 
 async function hook(root: string, event: unknown) {
-  const run = Bun.spawn(["bun", join(root, "shell-unwrap.js"), "codex"], {
+  const run = Bun.spawn([join(root, "shell-unwrap"), "codex"], {
     stdin: new Blob([JSON.stringify(event)]),
     stdout: "pipe",
     stderr: "pipe",
@@ -80,8 +84,8 @@ describe("codex hook", () => {
 
 describe("pi extension", () => {
   test("blocks a denied command with its reason and passes the rest", async () => {
-    expect(await review("timeout 5 rm x", join(installed, "shell-unwrap.js"))).toContain("use trash");
-    expect(await review("git status", join(installed, "shell-unwrap.js"))).toBeUndefined();
+    expect(await review("timeout 5 rm x", join(installed, "shell-unwrap"))).toContain("use trash");
+    expect(await review("git status", join(installed, "shell-unwrap"))).toBeUndefined();
   });
 
   test("blocks when the hook cannot run", async () => {

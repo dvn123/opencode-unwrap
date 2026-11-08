@@ -1,0 +1,26 @@
+#!/bin/sh
+# Copies what coding-agent-sync vendors into the directory given: the Go
+# source of the binary with its dependencies, which the compiler builds
+# offline with `go build -mod=vendor`, and the built OpenCode plugin and Pi
+# extension. Run `bun run check` first.
+set -eu
+
+target=${1:?usage: scripts/vendor TARGET_DIR}
+source=$(cd "$(dirname "$0")/.." && pwd)
+[ -f "$source/dist/opencode/shell-unwrap.js" ] || { echo "run bun run check first" >&2; exit 1; }
+
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+cp "$source/go.mod" "$source/go.sum" "$stage/"
+(cd "$source" && tar -cf - --exclude '*_test.go' cmd internal) | (cd "$stage" && tar -xf -)
+(cd "$stage" && go mod vendor)
+cp "$source/dist/opencode/shell-unwrap.js" "$stage/opencode.js"
+cp "$source/dist/pi/index.js" "$stage/pi.js"
+
+mkdir -p "$target"
+# Replace what an earlier vendoring left, but nothing else in the directory.
+for entry in go.mod go.sum cmd internal vendor opencode.js pi.js hook.js; do
+  rm -rf "${target:?}/$entry"
+done
+cp -R "$stage"/. "$target/"
+echo "vendored shell-unwrap $(git -C "$source" rev-parse --short HEAD)$(git -C "$source" diff --quiet || echo '+changes') into $target"

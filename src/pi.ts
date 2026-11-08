@@ -2,8 +2,8 @@
  * Pi extension: runs shell-unwrap's Codex hook on every `bash` tool call and
  * blocks the call with the hook's reason when it denies.
  *
- * Pi runs extensions in Node, and the hook bundle needs Bun, so the extension
- * starts the bundle beside it, `shell-unwrap.js`, as the Codex host. It blocks
+ * Pi runs extensions in Node, so the extension starts the `shell-unwrap`
+ * binary beside it as the Codex host. It blocks
  * when the hook cannot run, so the guards fail closed. It never asks: Pi's
  * permission system already asks for a command behind a wrapper it does not
  * know, and a second prompt would only repeat it.
@@ -13,7 +13,10 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const HOOK = join(dirname(fileURLToPath(import.meta.url)), "shell-unwrap.js");
+const HOOK = join(
+  dirname(fileURLToPath(import.meta.url)),
+  process.platform === "win32" ? "shell-unwrap.exe" : "shell-unwrap",
+);
 const TIMEOUT_MS = 10_000;
 const UNAVAILABLE = "shell-unwrap could not run, so its guards were not checked";
 
@@ -29,10 +32,7 @@ interface Pi {
 /** The hook's stdout for one command; rejects when it cannot run. */
 function runHook(command: string, hook = HOOK): Promise<string> {
   return new Promise((resolve, reject) => {
-    // From the bundle's directory, since a mise `bun` shim exits in a project
-    // whose mise config is untrusted.
-    const child = spawn("bun", [hook, "codex"], {
-      cwd: dirname(hook),
+    const child = spawn(hook, ["codex"], {
       stdio: ["pipe", "pipe", "ignore"],
       timeout: TIMEOUT_MS,
     });

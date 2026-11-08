@@ -28,6 +28,11 @@ const CASES: [string, "deny" | "ask" | undefined][] = [
   ["rm x > out.txt", "deny"],
   ["$program status", undefined],
   ["if true; then", "ask"],
+  // What zsh fixes before it runs decides too: a literal loop or assignment.
+  ["for w in add; do git worktree $w ../x; done", "deny"],
+  ["W=add; git worktree $W ../x", "deny"],
+  ["for c in push; do git $c origin; done", "ask"],
+  ["git worktree ${X:-add} ../x", undefined],
 ];
 
 let plugin: string;
@@ -43,7 +48,7 @@ beforeAll(() => {
 });
 
 async function hook(root: string, event: unknown) {
-  const run = Bun.spawn(["bun", join(root, "shell-unwrap.js"), "cursor"], {
+  const run = Bun.spawn([join(root, "shell-unwrap"), "cursor"], {
     stdin: new Blob([JSON.stringify(event)]),
     stdout: "pipe",
     stderr: "pipe",
@@ -72,7 +77,7 @@ describe("cursor hook", () => {
   });
 
   test("an unknown host exits non-zero, so the hook command falls back to ask", async () => {
-    const run = Bun.spawn(["bun", join(plugin, "shell-unwrap.js")], {
+    const run = Bun.spawn([join(plugin, "shell-unwrap")], {
       stdin: new Blob([JSON.stringify({ command: "git status" })]),
       stdout: "pipe",
       stderr: "pipe",

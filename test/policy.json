@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(gh api *)",
+      "Bash(rg *)",
+      "Bash(echo *)",
+      "Bash(ls *)",
+      "Bash(wc *)",
+      "Bash(fd *)",
+      "Bash(head *)",
+      "Edit(**)",
+      "Edit(//tmp/**)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git -* push *)",
+      "Edit(**/*.lock)"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(find *)",
+      "Bash(python3 - *)",
+      "Bash(git clean *)",
+      "Bash(git -* clean *)",
+      "Bash(gh api -X POST *)",
+      "Bash(gh api --method POST *)",
+      "Bash(git rebase -i *)",
+      "Read(//**/.env)",
+      "Edit(//**/.env)",
+      "Read(~/.ssh/**)"
+    ],
+    "additionalDirectories": [
+      "{extra}"
+    ]
+  },
+  "reasons": {
+    "rm *": "use trash",
+    "python3 - *": "write a script"
+  }
+}
