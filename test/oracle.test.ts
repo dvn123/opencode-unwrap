@@ -53,6 +53,7 @@ const DENY = [
   "git*core.pager*",
   "git*-c alias.*",
   "rm *",
+  "rg * --pre *",
   "curl* -K*",
   "*SECRET_TOKEN*",
 ];
@@ -159,10 +160,12 @@ function cases(): [string, string][] {
     ["state: cd var", "cd $HOME && ls"],
     ["constant: home", "ls $HOME ${HOME}/x"],
     ["constant: user", "git log --author=$USER"],
-    ["git-boundary: after subcommand", "git log $(echo -c core.pager=less)"],
+    ["git-boundary: after subcommand", 'git log $(echo -c core."pager"=less)'],
     ["git-boundary: before subcommand", "git $(echo -c core.pager=less) log"],
     ["git-boundary: config", "git config $(echo core.pager less)"],
     ["git-boundary: path", "d=$(echo x); git -C $d -c core.pager=less log"],
+    ["operands: after --", 'rg -n x -- $(echo -"-pre" sh)'],
+    ["operands: xargs after --", "echo --pre sh | xargs rg -n x --"],
     ["loop: rebound", "for v in status; do for v in clean; do true; done; git $v -fd; done"],
     ["loop: read", "for v in status; do read -r v <<< clean; git $v -fd; done"],
     ["loop: literal", "for v in status log; do git $v; done"],
@@ -253,8 +256,24 @@ function isTextRule(pattern: string): boolean {
   return pattern.split(" ").some((token) => token !== "*" && token !== "-*" && token.includes("*"));
 }
 
-/** The words a rule reads: for a git text rule, those up to the subcommand. */
+// Programs that read every word after a literal `--` as an operand, so no
+// rule about an option is met there.
+const ENDS_OPTIONS = ["rg", "grep", "fd", "ls", "cat", "head", "tail", "wc", "sort", "sed", "awk", "jq"];
+
+function namesOption(pattern: string): boolean {
+  return pattern
+    .split(" ")
+    .slice(1)
+    .some((token) => token.startsWith("-") && token !== "-*");
+}
+
+/**
+ * The words a rule reads: for a git text rule, those up to the subcommand;
+ * for an option rule, those before a `--` that ends the options.
+ */
 function ruleWords(pattern: string, argv: string[]): string[] {
+  const end = argv.indexOf("--");
+  if (ENDS_OPTIONS.includes(argv[0]!) && end !== -1 && namesOption(pattern)) return argv.slice(0, end);
   if (argv[0] !== "git" || !isTextRule(pattern)) return argv;
   let index = 1;
   while (index < argv.length && argv[index]!.startsWith("-")) index += GIT_TAKES_VALUE.includes(argv[index]!) ? 2 : 1;
@@ -292,10 +311,8 @@ function run(script: string): string[][] {
 /** Why a recorded run breaks the rules, or undefined when it keeps them. */
 function broken(argv: string[]): string | undefined {
   if (argv.some((arg) => arg.includes(SECRET))) return "carries the secret";
-  for (const text of readings(argv)) {
-    const rule = [...DENY, ...ASK].find((pattern) => globMatches(pattern, text));
-    if (rule) return `matches \`${rule}\``;
-  }
+  const rule = [...DENY, ...ASK].find((pattern) => meets(pattern, argv));
+  if (rule) return `matches \`${rule}\``;
   const wrapper = /^(timeout|env|nice|nohup|xargs)$/.test(argv[0]!);
   if (!wrapper && !ALLOW.some((pattern) => globMatches(pattern, argv.join(" ")))) return "matches no allow rule";
   return undefined;
@@ -303,10 +320,9 @@ function broken(argv: string[]): string | undefined {
 
 /** The strictest rule a recorded run meets. */
 function guard(argv: string[]): "deny" | "ask" | undefined {
-  const texts = readings(argv);
   if (argv.some((arg) => arg.includes(SECRET))) return "deny";
-  if (DENY.some((pattern) => texts.some((text) => globMatches(pattern, text)))) return "deny";
-  if (ASK.some((pattern) => texts.some((text) => globMatches(pattern, text)))) return "ask";
+  if (DENY.some((pattern) => meets(pattern, argv))) return "deny";
+  if (ASK.some((pattern) => meets(pattern, argv))) return "ask";
   return undefined;
 }
 

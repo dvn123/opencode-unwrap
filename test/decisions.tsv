@@ -154,6 +154,15 @@ shell	export PATH=/tmp; ls	abstain	export of PATH
 shell	local x=1; ls	abstain	local declaration
 shell	setopt pipefail; ls	allow	
 shell	setopt extendedglob; ls	abstain	setopt changes the shell
+# After a literal `--`, a program that ends its options there reads run-time
+# words as operands, so an option guard cannot meet them; a path guard still
+# may. $TMPDIR, like $HOME, is fixed for the whole script.
+operands	rg -n x -- $f	allow	
+operands	rg -n x $f	abstain	may match
+operands	fd -e py | xargs rg -l x --	allow	
+operands	fd -e py | xargs rg -l x	abstain	may match
+constant	ls $TMPDIR	allow	
+constant	TMPDIR=/etc; ls	abstain	assignment to exported TMPDIR
 # A redirect reads or writes a file, judged by the Read and Edit rules: a
 # write needs an Edit allow, a read an allow or a working directory, and a
 # matching deny or ask decides the command.

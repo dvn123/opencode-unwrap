@@ -94,7 +94,7 @@ the words zsh passes, with quoting removed and every part zsh decides at run
 time (a parameter, a command
 substitution, a glob, a brace list, the input `xargs` adds) standing for any
 text, including several words or none. What zsh fixes before it runs is
-text, not a wildcard: `$HOME`, `$USER` and `$LOGNAME`, which the shell
+text, not a wildcard: `$HOME`, `$USER`, `$LOGNAME` and `$TMPDIR`, which the shell
 inherits from the process that runs the hook and which no allowed command can
 reassign, and a loop variable over literal words, judged once per word when
 nothing else in the script sets it. Each rule is then graded against those
