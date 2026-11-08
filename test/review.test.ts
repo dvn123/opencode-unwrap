@@ -49,6 +49,10 @@ describe("review", () => {
     ["FOO=1 git status", "ask", "ask"],
     ["env -u HOME timeout 30 git status", "ask", "allow"],
     ["env FOO=1 git status", "ask", "ask"],
+    ["GIT_EDITOR=true git status", "ask", "allow"],
+    // An ask reached through a peel asks, however the raw text was judged.
+    ["xargs -n1 bq cp a b", "allow", "ask"],
+    ["xargs -n1 bq ls", "allow", "allow"],
   ] as const)("judges %s from %s to %s", async (command, effect, expected) => {
     expect(await judged(command, effect)).toEqual({ effect: expected, message: undefined, loads: 1 });
   });

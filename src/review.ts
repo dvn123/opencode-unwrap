@@ -30,9 +30,11 @@ export async function readReasons(path: string): Promise<Reasons> {
 /**
  * Denies a shell command when the rules deny any spelling peeled from it, so
  * a wrapped command is never looser than the denied command it runs. The deny
- * names the reason its rule carries. Otherwise an asked command is allowed when
- * every resource reaches an allow through transparent wrappers only
- * (`timeout 30 git status`); program paths, assignments, and wrappers that
+ * names the reason its rule carries. An allowed command asks when an ask rule
+ * matches a peeled spelling. Otherwise an asked command is allowed when
+ * every resource reaches an allow through transparent wrappers and harmless
+ * assignments only (`timeout 30 git status`); program paths, other
+ * assignments, and wrappers that
  * change the command, its arguments, or its user never carry an allow, so
  * `./gradlew` does not inherit anything from `gradlew`. Rules load only when
  * there is something to peel.
@@ -57,9 +59,17 @@ export async function review(
   if (denied) {
     event.effect = "deny";
     event.message = denial(denied, because(loaded, denied, reasons));
+  } else if (event.effect === "allow" && peeled.some((spelling) => asked(loaded, spelling))) {
+    event.effect = "ask";
   } else if (event.effect === "ask" && event.resources.every((resource) => passes(loaded, resource))) {
     event.effect = "allow";
   }
+}
+
+/** Whether a rule narrower than the catch-all asks for `spelling`. */
+function asked(rules: Permission.Ruleset, spelling: string): boolean {
+  const rule = matching(rules, "shell", spelling);
+  return rule !== undefined && rule.resource !== "*" && rule.effect === "ask";
 }
 
 /**

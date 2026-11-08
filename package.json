@@ -1,17 +1,19 @@
 {
   "name": "shell-unwrap",
   "version": "0.2.0",
-  "description": "Applies shell permission rules to wrapped commands, as an OpenCode plugin, a Claude Code hook, and a Cursor hook",
+  "description": "Applies shell permission rules to wrapped commands, as an OpenCode plugin, a Pi extension, and Claude Code, Codex and Cursor hooks",
   "type": "module",
   "exports": {
     ".": "./src/opencode.ts",
     "./claude": "./src/claude.ts",
-    "./cursor": "./src/cursor.ts"
+    "./cursor": "./src/cursor.ts",
+    "./codex": "./src/codex.ts",
+    "./pi": "./src/pi.ts"
   },
   "scripts": {
     "check": "tsc --noEmit && bun run build && bun test",
     "test": "bun test",
-    "build": "bun build src/opencode.ts --target bun --outfile dist/opencode/shell-unwrap.js && bun build src/hook.ts --target bun --outfile dist/hook/shell-unwrap.js"
+    "build": "bun build src/opencode.ts --target bun --outfile dist/opencode/shell-unwrap.js && bun build src/hook.ts --target bun --outfile dist/hook/shell-unwrap.js && bun build src/pi.ts --target node --outfile dist/pi/index.js"
   },
   "devDependencies": {
     "@opencode/plugin": "2.2.5",

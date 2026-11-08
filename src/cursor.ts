@@ -19,8 +19,7 @@
  */
 
 import { join } from "node:path";
-import { MAX_COMMAND, buildRules, commands, denied, matching, type Rules } from "./claude.ts";
-import { spellings } from "./peel.ts";
+import { MAX_COMMAND, asked, buildRules, commands, denied, type Rules } from "./claude.ts";
 import { readReasons } from "./review.ts";
 
 export { spellings, transparent } from "./peel.ts";
@@ -56,10 +55,8 @@ export async function decide(script: string, rules: Rules): Promise<Verdict | un
     if (message) return verdict("deny", message);
   }
   for (const command of found) {
-    for (const spelling of [command, ...spellings(command)]) {
-      if (matching(rules.ask, spelling).length > 0)
-        return verdict("ask", `shell-unwrap: \`${spelling}\` needs approval`);
-    }
+    const spelling = asked(rules, command);
+    if (spelling) return verdict("ask", `shell-unwrap: \`${spelling}\` needs approval`);
   }
   return undefined;
 }

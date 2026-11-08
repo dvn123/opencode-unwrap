@@ -213,6 +213,18 @@ const SYSTEM_DIRS = ["", "/bin/", "/usr/bin/"];
 const XARGS_INPUT = "<xargs-input>";
 const XARGS_REPLACE = ["-I", "-J", "--replace"];
 
+// Assignments that change nothing a rule decides, written as agents type them:
+// the editor Git and gh would open, the separator `read` splits on, and
+// Python's bytecode cache.
+const HARMLESS_ASSIGNMENTS = new Set([
+  "GIT_EDITOR=true",
+  "PYTHONDONTWRITEBYTECODE=1",
+  "IFS=",
+  "IFS=,",
+  "IFS='|'",
+  "IFS=$'\\t'",
+]);
+
 /** Whether a word before the wrapped command keeps the wrapper transparent. */
 function permitted(value: string, options: readonly string[]): boolean {
   if (value === "--") return true;
@@ -223,14 +235,19 @@ function permitted(value: string, options: readonly string[]): boolean {
 }
 
 /**
- * The command a transparent wrapper runs, or undefined when `command` does not
- * start with one or passes it an option outside its table.
+ * The command a transparent wrapper or a harmless assignment runs, or
+ * undefined when `command` does not start with one or passes the wrapper an
+ * option outside its table.
  */
 export function transparent(command: string): string | undefined {
   const text = command.trim();
   const list = words(text);
   const head = list[0];
-  if (!head || text.slice(head.start, head.end) !== head.value) return undefined;
+  if (!head) return undefined;
+  if (HARMLESS_ASSIGNMENTS.has(text.slice(head.start, head.end))) {
+    return list[1] ? text.slice(list[1].start).trim() : undefined;
+  }
+  if (text.slice(head.start, head.end) !== head.value) return undefined;
   const program = basename(head.value);
   const options = TRANSPARENT[program];
   if (!options || !SYSTEM_DIRS.includes(head.value.slice(0, head.value.length - program.length))) return undefined;
@@ -241,6 +258,43 @@ export function transparent(command: string): string | undefined {
   const inner = text.slice(list[index]!.start).trim();
   const replaces = before.some(({ value }) => XARGS_REPLACE.some((flag) => value.split("=")[0]!.startsWith(flag)));
   return program === "xargs" && !replaces ? `${inner} ${XARGS_INPUT}` : inner;
+}
+
+// Longer letter runs are single-dash long options (`-chdir`, `-version`), not
+// bundles of short flags.
+const MAX_BUNDLE = 4;
+
+/**
+ * The readings of one unquoted flag a rule can match: a bundle of short flags
+ * split (`-fu` as `-f -u`), a value detached from its flag (`--method=POST`,
+ * `-X=POST`, `-n1`, `-XPOST`), and both readings of a short bundle whose tail
+ * could be a value (`-oL` as `-o -L` and `-o L`).
+ */
+function flagReadings(raw: string): [string, string] | undefined {
+  const joined = /^(--?[A-Za-z0-9][A-Za-z0-9-]*)=(.+)$/s.exec(raw);
+  if (joined) return [`${joined[1]} ${joined[2]}`, `${joined[1]} ${joined[2]}`];
+  if (!/^-[A-Za-z]./s.test(raw) || raw.startsWith("--")) return undefined;
+  const value = `${raw.slice(0, 2)} ${raw.slice(2)}`;
+  const valued = /[A-Z]/.test(raw.slice(2));
+  if (!/^-[A-Za-z]+$/.test(raw)) return [value, value];
+  if (raw.length - 1 > MAX_BUNDLE) return valued ? [value, value] : undefined;
+  const split = [...raw.slice(1)].map((letter) => `-${letter}`).join(" ");
+  return [split, valued ? value : split];
+}
+
+/** The command with every flag in each of its readings, when any changes. */
+function flagSpellings(text: string, list: readonly Word[]): string[] {
+  const variants: [string, string] = [text, text];
+  // Right to left, so earlier offsets stay valid.
+  for (const word of [...list.slice(1)].reverse()) {
+    const raw = text.slice(word.start, word.end);
+    const readings = raw === word.value ? flagReadings(raw) : undefined;
+    if (!readings) continue;
+    for (const index of [0, 1] as const) {
+      variants[index] = variants[index].slice(0, word.start) + readings[index] + variants[index].slice(word.end);
+    }
+  }
+  return [...new Set(variants)].filter((variant) => variant !== text);
 }
 
 /** The spellings one prefix layer below `text`. */
@@ -269,6 +323,9 @@ function peelOnce(text: string): string[] {
       const payload = split > 0 ? list[split + 1] : undefined;
       if (payload) found.push(payload.value + text.slice(payload.end));
     }
+  } else if (program === raw) {
+    // Rules name the bare program, so only its own spelling needs the flags read.
+    found.push(...flagSpellings(text, list));
   }
   return found.map((spelling) => spelling.trim()).filter(Boolean);
 }

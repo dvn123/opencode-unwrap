@@ -9,11 +9,12 @@ import { join } from "node:path";
 
 const DIST = join(import.meta.dir, "../dist/hook");
 const ALLOW = ["git status *", "git diff *", "rg *", "echo *", "ls *", "wc *", "fd *", "head *"];
-const ASK = ["git push *"];
-const DENY = ["rm *", "find *", "python3 - *"];
+// The compiler covers options before a subcommand with one `prog -* sub` hole.
+const ASK = ["git push *", "git -* push *"];
+const DENY = ["rm *", "find *", "python3 - *", "git clean *", "git -* clean *", "gh api -X POST *", "gh api --method POST *", "git rebase -i *"];
 const REASONS = { "rm *": "use trash", "python3 - *": "write a script" };
 
-const CASES: [string, "allow" | "deny" | undefined][] = [
+const CASES: [string, "allow" | "ask" | "deny" | undefined][] = [
   ["git status", "allow"],
   ["for f in a b; do rg -n x $f; done", "allow"],
   ["echo $(git status --short)", "allow"],
@@ -34,9 +35,21 @@ const CASES: [string, "allow" | "deny" | undefined][] = [
   ["$program status", undefined],
   ["f() { ls; }; f", undefined],
   ["ls | tee out.txt", undefined],
-  ["git push origin main", undefined],
+  ["git push origin main", "ask"],
+  ["git -C extra push origin main", "ask"],
+  ["fd x | xargs -n1 git push", "ask"],
   ["python3 script.py", undefined],
   ["if true; then", undefined],
+  ["if true; then xargs -n1 rm", "deny"],
+  ["GIT_EDITOR=true git status", "allow"],
+  ["GIT_PAGER=cat git status", undefined],
+  ["fd x | xargs -n1 rm", "deny"],
+  ["ls > out.txt; xargs -0 rm < list", "deny"],
+  ["git -C extra clean -fd", "deny"],
+  ["git -c core.pager=cat --no-pager clean -fd", "deny"],
+  ["gh api -XPOST repos/x", "deny"],
+  ["gh api --method=POST repos/x", "deny"],
+  ["git rebase -ix main", "deny"],
   ["rm -rf build", "deny"],
   ["timeout 5 rm build", "deny"],
   ["FOO=1 /bin/rm build", "deny"],
@@ -94,14 +107,15 @@ describe("claude hook", () => {
     expect(await hook("Read", "git status")).toBeUndefined();
   });
 
-  test("a missing settings file leaves the command to Claude", async () => {
+  test("a missing settings file asks, so the guards fail closed", async () => {
     const bare = mkdtempSync(join(tmpdir(), "shell-unwrap-"));
     cpSync(DIST, join(bare, "hooks"), { recursive: true });
     const run = Bun.spawn(["bun", join(bare, "hooks/shell-unwrap.js"), "claude"], {
       stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command: "rm x" } })]),
       stdout: "pipe",
     });
-    expect(await new Response(run.stdout).text()).toBe("");
+    const output = JSON.parse(await new Response(run.stdout).text()).hookSpecificOutput;
+    expect(output.permissionDecision).toBe("ask");
     expect(await run.exited).toBe(0);
   });
 

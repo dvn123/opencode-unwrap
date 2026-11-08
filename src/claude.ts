@@ -14,7 +14,11 @@
  *
  * Claude Code still evaluates its own deny and ask rules after a hook allows,
  * so the hook can only remove a prompt, never lift a guard. Anything it does
- * not model, it leaves to Claude: it prints nothing, including on any error.
+ * not model for an allow, it leaves to Claude by printing nothing. The deny
+ * and ask checks run on every command it can find, on the pieces between
+ * shell operators when it cannot parse the command, and it asks when it
+ * fails: the compiler leaves spellings such as `xargs -n1 rm` to this hook,
+ * so its guards fail closed.
  *
  * The bundle, with tree-sitter's WASM embedded, sits in `<claude root>/hooks/`;
  * the rules and reasons are read from the root.
@@ -72,8 +76,12 @@ export interface Rules {
 }
 
 export interface Decision {
-  readonly permissionDecision: "allow" | "deny";
+  readonly permissionDecision: "allow" | "deny" | "ask";
   readonly permissionDecisionReason: string;
+}
+
+function unchecked(why: string): Decision {
+  return { permissionDecision: "ask", permissionDecisionReason: `shell-unwrap: ${why}, so its guards were not checked` };
 }
 
 const compiled = new Map<string, RegExp>();
@@ -252,6 +260,11 @@ export function denied(rules: Rules, command: string): string | undefined {
   return undefined;
 }
 
+/** The first of `command`'s spellings an ask rule matches. */
+export function asked(rules: Rules, command: string): string | undefined {
+  return [command, ...spellings(command)].find((spelling) => matching(rules.ask, spelling).length > 0);
+}
+
 /**
  * Whether the program runs, writes, or deletes by its own arguments in a way
  * Claude Code prompts for even under a matching allow.
@@ -285,7 +298,32 @@ function inside(target: string, directories: readonly string[]): boolean {
 }
 
 /** A PreToolUse decision, or undefined to leave the command to Claude Code. */
+/**
+ * Every command for the guards to judge: those the parse finds, or, when the
+ * script cannot be parsed, each piece between shell operators.
+ */
+export async function guarded(script: string): Promise<string[]> {
+  try {
+    return await commands(script, false);
+  } catch (error) {
+    if (!(error instanceof Abstain)) throw error;
+    return script
+      .split(/\$\(|[;&|\n()`{}]+/)
+      .map((piece) => piece.replace(/^(?:\s*(?:if|then|else|elif|do|while|until|!)\s+)+/, "").trim())
+      .filter(Boolean);
+  }
+}
+
 export async function decide(script: string, cwd: string, rules: Rules): Promise<Decision | undefined> {
+  const all = await guarded(script);
+  for (const command of all) {
+    const message = denied(rules, command);
+    if (message) return { permissionDecision: "deny", permissionDecisionReason: message };
+  }
+  for (const command of all) {
+    const spelling = asked(rules, command);
+    if (spelling) return { permissionDecision: "ask", permissionDecisionReason: `shell-unwrap: \`${spelling}\` needs approval` };
+  }
   if (script.length > MAX_COMMAND) return undefined;
   let found: string[];
   try {
@@ -295,10 +333,6 @@ export async function decide(script: string, cwd: string, rules: Rules): Promise
     throw error;
   }
   if (found.length === 0) return undefined;
-  for (const command of found) {
-    const message = denied(rules, command);
-    if (message) return { permissionDecision: "deny", permissionDecisionReason: message };
-  }
   const directories = [real(cwd), ...rules.directories];
   const split = found.map((command) => words(command).map((word) => word.value));
   const names = new Set(split.filter((parts) => parts.length > 0).map((parts) => basename(parts[0]!)));
@@ -327,8 +361,7 @@ export async function main(): Promise<void> {
     if (typeof script !== "string") return;
     decision = await decide(script, event.cwd || process.cwd(), await loadRules(ROOT));
   } catch {
-    // Any failure falls back to Claude Code's own flow.
-    return;
+    decision = unchecked("the hook failed");
   }
   if (decision) {
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", ...decision } }));

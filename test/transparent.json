@@ -29,5 +29,8 @@
   "xargs -a list wc": null,
   "FOO=1 git status": null,
   "sudo git status": null,
-  "exec git status": null
+  "exec git status": null,
+  "GIT_EDITOR=true git status": "git status",
+  "IFS=$'\\t' read -r a": "read -r a",
+  "IFS= read -r line": "read -r line"
 }
