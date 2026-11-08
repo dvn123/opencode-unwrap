@@ -77,7 +77,9 @@ asks when any spelling of one is asked, and allows it when every one reaches an
 allow. Claude still evaluates its own deny and ask rules after a hook allow, so
 the hook only removes prompts. Claude itself peels `xargs` only bare, so a rule
 set may leave `xargs` with options to this hook; it therefore asks when it
-cannot parse the command or fails, and its guards fail closed.
+cannot parse the command or fails, and its guards fail closed. Claude's bypass
+permissions mode still shows a hook's ask, so in that mode the hook never asks;
+its denies still apply, as Claude's own deny rules do.
 
 For an allow, it stays silent, leaving the command to Claude, on anything it
 does not model: file redirects, `tee`, `find` actions, `fd -x`, `cd` outside
@@ -106,7 +108,8 @@ prefix and hold no text rule, so the hook judges every command inside a call
 with the Claude hook's peel and matching, and denies it when any spelling of
 one is denied. It only denies: Codex rejects an `ask` from a `PreToolUse`
 hook, so asks stay native `prompt` prefix rules. It denies when it cannot read
-its rules or fails, so the guards fail closed. Codex runs a hook only after
+its rules or fails, so the guards fail closed, except when the approval policy
+is `never` (`permission_mode` `bypassPermissions`). Codex runs a hook only after
 the user trusts it in `/hooks`.
 
 ### Pi
@@ -116,7 +119,8 @@ The extension, `dist/pi/index.js`, sits in
 `shell-unwrap.json`. On every `bash` tool call it runs the bundle's Codex host
 and blocks the call with the hook's reason when the hook denies, or when the
 hook cannot run. Pi runs extensions in Node, so the bundle runs in a Bun
-subprocess. It never asks: the permission system Pi runs alongside it,
+subprocess, started in the bundle's directory so a project's mise config
+cannot break the `bun` shim. It never asks: the permission system Pi runs alongside it,
 pi-permission-system, already asks for a command behind a wrapper it does not
 know.
 

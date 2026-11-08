@@ -70,6 +70,12 @@ describe("codex hook", () => {
     const output = await hook(install(undefined), { tool_name: "Bash", tool_input: { command: "git status" } });
     expect(output.permissionDecision).toBe("deny");
   });
+
+  test("bypass mode lets a failure through and keeps the denies", async () => {
+    const bypass = { tool_name: "Bash", permission_mode: "bypassPermissions" };
+    expect(await hook(install(undefined), { ...bypass, tool_input: { command: "git status" } })).toBeUndefined();
+    expect((await hook(installed, { ...bypass, tool_input: { command: "rm x" } }))?.permissionDecision).toBe("deny");
+  });
 });
 
 describe("pi extension", () => {

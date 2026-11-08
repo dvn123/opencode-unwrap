@@ -29,7 +29,13 @@ interface Pi {
 /** The hook's stdout for one command; rejects when it cannot run. */
 function runHook(command: string, hook = HOOK): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("bun", [hook, "codex"], { stdio: ["pipe", "pipe", "ignore"], timeout: TIMEOUT_MS });
+    // From the bundle's directory, since a mise `bun` shim exits in a project
+    // whose mise config is untrusted.
+    const child = spawn("bun", [hook, "codex"], {
+      cwd: dirname(hook),
+      stdio: ["pipe", "pipe", "ignore"],
+      timeout: TIMEOUT_MS,
+    });
     let output = "";
     child.stdout.on("data", (chunk) => (output += chunk));
     child.on("error", reject);

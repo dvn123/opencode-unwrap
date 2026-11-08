@@ -5,7 +5,8 @@
  * guard misses a wrapped, bundled or joined spelling, and every text rule
  * falls away. This hook denies a command when any peeled spelling of a command
  * inside it matches a deny rule, naming the rule's reason, and denies when it
- * cannot read its rules or fails, so its guards fail closed.
+ * cannot read its rules or fails, so its guards fail closed, except in bypass
+ * mode, where a failure lets the command through.
  *
  * It only denies. Codex rejects an `ask` from this hook, so asks stay native
  * prefix rules, and Pi's permission system already asks for a command behind a
@@ -31,15 +32,19 @@ export async function decide(script: string, rules: Rules): Promise<string | und
 }
 
 export async function main(): Promise<void> {
+  let event;
   let reason: string | undefined;
   try {
-    const event = await Bun.stdin.json();
+    event = await Bun.stdin.json();
     const script = event?.tool_input?.command;
     if (event?.tool_name !== "Bash" || typeof script !== "string") return;
     reason = await decide(script, await loadRules(RULES));
   } catch {
     reason = FAILED;
   }
+  // The failure deny stands in for the ask Codex rejects, and bypass mode
+  // (approval policy `never`) asks nothing.
+  if (reason === FAILED && event?.permission_mode === "bypassPermissions") return;
   if (reason) {
     const output = { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason };
     process.stdout.write(JSON.stringify({ hookSpecificOutput: output }));

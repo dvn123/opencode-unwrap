@@ -87,8 +87,8 @@ beforeAll(() => {
   writeFileSync(join(root, "shell-unwrap.json"), JSON.stringify({ reasons: REASONS }));
 });
 
-async function hook(tool: string, command: string) {
-  const event = { tool_name: tool, tool_input: { command }, cwd: root };
+async function hook(tool: string, command: string, mode = "default") {
+  const event = { tool_name: tool, tool_input: { command }, cwd: root, permission_mode: mode };
   const run = Bun.spawn(["bun", join(root, "hooks/shell-unwrap.js"), "claude"], {
     stdin: new Blob([JSON.stringify(event)]),
     stdout: "pipe",
@@ -104,6 +104,11 @@ describe("claude hook", () => {
     const output = await hook("Bash", command.replaceAll("extra", join(root, "extra")));
     expect(output?.permissionDecision).toBe(expected);
     if (command in DENIALS) expect(output?.permissionDecisionReason).toBe(DENIALS[command]);
+  });
+
+  test("bypass mode drops asks and keeps denies", async () => {
+    expect(await hook("Bash", "git push origin main", "bypassPermissions")).toBeUndefined();
+    expect((await hook("Bash", "timeout 5 rm build", "bypassPermissions"))?.permissionDecision).toBe("deny");
   });
 
   test("other tools get no decision", async () => {

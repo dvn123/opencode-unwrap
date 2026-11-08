@@ -18,7 +18,7 @@
  * and ask checks run on every command it can find, on the pieces between
  * shell operators when it cannot parse the command, and it asks when it
  * fails: the compiler leaves spellings such as `xargs -n1 rm` to this hook,
- * so its guards fail closed.
+ * so its guards fail closed. In bypass permissions mode it never asks.
  *
  * The bundle, with tree-sitter's WASM embedded, sits in `<claude root>/hooks/`;
  * the rules and reasons are read from the root.
@@ -353,9 +353,10 @@ export async function decide(script: string, cwd: string, rules: Rules): Promise
 }
 
 export async function main(): Promise<void> {
+  let event;
   let decision: Decision | undefined;
   try {
-    const event = await Bun.stdin.json();
+    event = await Bun.stdin.json();
     if (event?.tool_name !== "Bash") return;
     const script = event.tool_input?.command;
     if (typeof script !== "string") return;
@@ -363,6 +364,9 @@ export async function main(): Promise<void> {
   } catch {
     decision = unchecked("the hook failed");
   }
+  // Bypass mode skips Claude Code's prompts, but not a hook's ask. Its denies
+  // still apply, as Claude Code's own deny rules do.
+  if (decision?.permissionDecision === "ask" && event?.permission_mode === "bypassPermissions") return;
   if (decision) {
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", ...decision } }));
   }
