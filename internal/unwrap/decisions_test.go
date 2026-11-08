@@ -77,14 +77,25 @@ func TestDecisions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// A directory git would take for a bare repository.
-	for _, dir := range []string{"bare/objects", "bare/refs"} {
+	// Directories git would take for a bare repository: `bare`; `linked`,
+	// whose commondir names bare; and `dotgit`, whose empty `.git` directory
+	// git passes over. `bare/work` is a repository of its own.
+	for _, dir := range []string{"bare/objects", "bare/refs", "linked", "dotgit/.git", "dotgit/objects", "dotgit/refs", "bare/work/.git/objects", "bare/work/.git/refs"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(root, "bare/HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
-		t.Fatal(err)
+	files := map[string]string{
+		"bare/HEAD":           "ref: refs/heads/main\n",
+		"linked/HEAD":         "ref: refs/heads/main\n",
+		"linked/commondir":    "../bare\n",
+		"dotgit/HEAD":         "ref: refs/heads/main\n",
+		"bare/work/.git/HEAD": "ref: refs/heads/main\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	rules := tableRules(t, root)
 	replacer := strings.NewReplacer(`\n`, "\n", `\t`, "\t", "{extra}", filepath.Join(root, "extra"), "{root}", root)

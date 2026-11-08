@@ -40,10 +40,25 @@ beforeAll(() => {
   symlinkSync(mkdtempSync(join(tmpdir(), "shell-unwrap-outside-")), join(root, "escape"));
   symlinkSync(join(root, "extra"), join(root, "inner"));
   symlinkSync(join(root, ".env"), join(root, "env-link"));
-  // A directory git would take for a bare repository.
-  mkdirSync(join(root, "bare/objects"), { recursive: true });
-  mkdirSync(join(root, "bare/refs"));
-  writeFileSync(join(root, "bare/HEAD"), "ref: refs/heads/main\n");
+  // Directories git would take for a bare repository: `bare`; `linked`,
+  // whose commondir names bare; and `dotgit`, whose empty `.git` directory
+  // git passes over. `bare/work` is a repository of its own.
+  for (const dir of [
+    "bare/objects",
+    "bare/refs",
+    "linked",
+    "dotgit/.git",
+    "dotgit/objects",
+    "dotgit/refs",
+    "bare/work/.git/objects",
+    "bare/work/.git/refs",
+  ]) {
+    mkdirSync(join(root, dir), { recursive: true });
+  }
+  for (const head of ["bare", "linked", "dotgit", "bare/work/.git"]) {
+    writeFileSync(join(root, head, "HEAD"), "ref: refs/heads/main\n");
+  }
+  writeFileSync(join(root, "linked/commondir"), "../bare\n");
   cpSync(DIST, join(root, "hooks"), { recursive: true });
   const policy = readFileSync(join(import.meta.dir, "policy.json"), "utf8").replaceAll("{extra}", join(root, "extra"));
   const { permissions, reasons } = JSON.parse(policy);

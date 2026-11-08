@@ -96,14 +96,20 @@ cd	cd / && ls	abstain	outside the working directories
 cd	cd - && ls	abstain	run-time directory
 cd	cd -P {extra} && ls	abstain	cd with options
 # git, after cd or with -C, takes a directory shaped like a bare repository
-# (`bare` holds HEAD, objects and refs) as one and runs its config, so that
-# asks; any other directory is judged like the working one.
+# (`bare` holds HEAD, objects and refs; `linked` holds HEAD and a commondir
+# naming bare; `dotgit` is bare beside an empty `.git`) as one and runs its
+# config, so that asks; any other directory, such as the repository
+# `bare/work`, is judged like the working one.
 git	cd {extra} && git status	allow	
 git	cd {extra} && git push origin x	ask	git push
 git	cd bare && git status	ask	bare repository
 git	cd bare/refs && git status	ask	bare repository
 git	git -C bare status	ask	bare repository
 git	git -C {extra} -C ../bare status	ask	bare repository
+git	cd linked && git fetch origin	ask	bare repository
+git	git -C linked status	ask	bare repository
+git	cd dotgit && git status	ask	bare repository
+git	cd bare/work && git status	allow	
 git	cd bare && git clean -fd	deny	
 git	(cd bare); git status	abstain	git from a run-time directory
 git	git -C $d status	abstain	may match
