@@ -12,6 +12,9 @@ import { main as codex } from "./codex.ts";
 import { main as cursor } from "./cursor.ts";
 
 export { spellings, transparent } from "./peel.ts";
+// Each host's rules and decision, for tools that replay the hook in process.
+export * as claude from "./claude.ts";
+export * as cursor from "./cursor.ts";
 
 const HOSTS: Record<string, () => Promise<void>> = { claude, codex, cursor };
 
