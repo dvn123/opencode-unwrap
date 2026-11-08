@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "opencode-unwrap",
+      "name": "shell-unwrap",
       "dependencies": {
         "web-tree-sitter": "0.25.10",
       },
