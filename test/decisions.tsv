@@ -89,12 +89,31 @@ assignment	ls && M=-XGET; gh api $M repos/x	abstain	may match
 assignment	M=-XGET; M=-XPOST; gh api $M repos/x	abstain	may match
 assignment	(M=-XGET); gh api $M repos/x	abstain	may match
 assignment	M=$(ls); gh api $M repos/x	abstain	may match
-# cd keeps commands in the working directories, and away from git.
+# cd keeps commands in the working directories.
 cd	(cd {extra} && ls)	allow	
 cd	cd {extra} && rg -n x	allow	
-cd	cd {extra} && git status	abstain	beside git
 cd	cd / && ls	abstain	outside the working directories
 cd	cd - && ls	abstain	run-time directory
+cd	cd -P {extra} && ls	abstain	cd with options
+# git, after cd or with -C, takes a directory shaped like a bare repository
+# (`bare` holds HEAD, objects and refs) as one and runs its config, so that
+# asks; any other directory is judged like the working one.
+git	cd {extra} && git status	allow	
+git	cd {extra} && git push origin x	ask	git push
+git	cd bare && git status	ask	bare repository
+git	cd bare/refs && git status	ask	bare repository
+git	git -C bare status	ask	bare repository
+git	git -C {extra} -C ../bare status	ask	bare repository
+git	cd bare && git clean -fd	deny	
+git	(cd bare); git status	abstain	git from a run-time directory
+git	git -C $d status	abstain	may match
+# A rule that starts with `*` is about the script's text, such as a variable
+# it names, which no run-time value adds; a bare assignment is text too.
+text	echo $x	allow	
+text	echo exit=$?	allow	
+text	echo $SECRET_TOKEN	deny	
+text	x=$SECRET_TOKEN; echo $x	deny	
+text	export X=$SECRET_TOKEN	deny	
 # A redirect reads or writes a file, judged by the Read and Edit rules: a
 # write needs an Edit allow, a read an allow or a working directory, and a
 # matching deny or ask decides the command.

@@ -29,7 +29,8 @@
       "Bash(git rebase -i *)",
       "Read(//**/.env)",
       "Edit(//**/.env)",
-      "Read(~/.ssh/**)"
+      "Read(~/.ssh/**)",
+      "Bash(*SECRET_TOKEN*)"
     ],
     "additionalDirectories": [
       "{extra}"

@@ -40,6 +40,10 @@ beforeAll(() => {
   symlinkSync(mkdtempSync(join(tmpdir(), "shell-unwrap-outside-")), join(root, "escape"));
   symlinkSync(join(root, "extra"), join(root, "inner"));
   symlinkSync(join(root, ".env"), join(root, "env-link"));
+  // A directory git would take for a bare repository.
+  mkdirSync(join(root, "bare/objects"), { recursive: true });
+  mkdirSync(join(root, "bare/refs"));
+  writeFileSync(join(root, "bare/HEAD"), "ref: refs/heads/main\n");
   cpSync(DIST, join(root, "hooks"), { recursive: true });
   const policy = readFileSync(join(import.meta.dir, "policy.json"), "utf8").replaceAll("{extra}", join(root, "extra"));
   const { permissions, reasons } = JSON.parse(policy);

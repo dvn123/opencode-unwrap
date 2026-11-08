@@ -77,6 +77,15 @@ func TestDecisions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// A directory git would take for a bare repository.
+	for _, dir := range []string{"bare/objects", "bare/refs"} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "bare/HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	rules := tableRules(t, root)
 	replacer := strings.NewReplacer(`\n`, "\n", `\t`, "\t", "{extra}", filepath.Join(root, "extra"), "{root}", root)
 	for _, row := range readTable(t, replacer) {
