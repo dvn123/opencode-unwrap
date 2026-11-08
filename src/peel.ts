@@ -224,6 +224,25 @@ const HARMLESS_ASSIGNMENTS = new Set([
   "IFS='|'",
   "IFS=$'\\t'",
 ]);
+// Names Claude Code 2.1.319 lets an allow rule read past (`L5e` in its bundle):
+// locale, colour, terminal size, build and log switches. Its `ANTHROPIC_API_KEY`
+// is left out: a credential typed into a command is never harmless.
+const SAFE_NAMES = new Set([
+  "GOEXPERIMENT", "GOOS", "GOARCH", "CGO_ENABLED", "GO111MODULE", "RUST_BACKTRACE", "RUST_LOG", "NODE_ENV",
+  "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE", "PYTEST_DISABLE_PLUGIN_AUTOLOAD", "PYTEST_DEBUG",
+  "LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE", "LC_TIME", "CHARSET", "TERM", "COLORTERM",
+  "NO_COLOR", "FORCE_COLOR", "TZ", "LS_COLORS", "LSCOLORS", "GREP_COLOR", "GREP_COLORS", "GCC_COLORS",
+  "TIME_STYLE", "BLOCK_SIZE", "BLOCKSIZE", "COLUMNS", "LINES", "CLICOLOR", "CLICOLOR_FORCE", "CI",
+  "DEBIAN_FRONTEND", "GIT_TERMINAL_PROMPT",
+]);
+// A plain value: nothing to expand, quote, or split.
+const PLAIN_VALUE = /^[A-Za-z0-9_.,:\/@%+-]*$/;
+
+function harmless(assignment: string): boolean {
+  if (HARMLESS_ASSIGNMENTS.has(assignment)) return true;
+  const [name, ...rest] = assignment.split("=");
+  return rest.length > 0 && SAFE_NAMES.has(name!) && PLAIN_VALUE.test(rest.join("="));
+}
 
 /** Whether a word before the wrapped command keeps the wrapper transparent. */
 function permitted(value: string, options: readonly string[]): boolean {
@@ -244,7 +263,7 @@ export function transparent(command: string): string | undefined {
   const list = words(text);
   const head = list[0];
   if (!head) return undefined;
-  if (HARMLESS_ASSIGNMENTS.has(text.slice(head.start, head.end))) {
+  if (harmless(text.slice(head.start, head.end))) {
     return list[1] ? text.slice(list[1].start).trim() : undefined;
   }
   if (text.slice(head.start, head.end) !== head.value) return undefined;
