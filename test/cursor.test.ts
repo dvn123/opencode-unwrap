@@ -7,7 +7,7 @@ import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const DIST = join(import.meta.dir, "../dist/cursor");
+const DIST = join(import.meta.dir, "../dist/hook");
 const ASK = ["git push *"];
 const DENY = ["rm *", "git worktree add *"];
 const REASONS = { "rm *": "use trash" };
@@ -43,7 +43,7 @@ beforeAll(() => {
 });
 
 async function hook(root: string, event: unknown) {
-  const run = Bun.spawn(["bun", join(root, "shell-unwrap.js")], {
+  const run = Bun.spawn(["bun", join(root, "shell-unwrap.js"), "cursor"], {
     stdin: new Blob([JSON.stringify(event)]),
     stdout: "pipe",
     stderr: "pipe",
@@ -69,5 +69,15 @@ describe("cursor hook", () => {
     const bare = mkdtempSync(join(tmpdir(), "shell-unwrap-cursor-"));
     cpSync(DIST, bare, { recursive: true });
     expect((await hook(bare, { command: "git status" })).permission).toBe("ask");
+  });
+
+  test("an unknown host exits non-zero, so the hook command falls back to ask", async () => {
+    const run = Bun.spawn(["bun", join(plugin, "shell-unwrap.js")], {
+      stdin: new Blob([JSON.stringify({ command: "git status" })]),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(await new Response(run.stdout).text()).toBe("");
+    expect(await run.exited).toBe(2);
   });
 });

@@ -11,7 +11,7 @@
   "scripts": {
     "check": "tsc --noEmit && bun run build && bun test",
     "test": "bun test",
-    "build": "bun build src/opencode.ts --target bun --outfile dist/opencode/shell-unwrap.js && bun build src/claude.ts --target bun --outfile dist/claude/shell-unwrap.js && bun build src/cursor.ts --target bun --outfile dist/cursor/shell-unwrap.js"
+    "build": "bun build src/opencode.ts --target bun --outfile dist/opencode/shell-unwrap.js && bun build src/hook.ts --target bun --outfile dist/hook/shell-unwrap.js"
   },
   "devDependencies": {
     "@opencode/plugin": "2.2.5",

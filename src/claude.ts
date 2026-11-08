@@ -318,7 +318,7 @@ export async function decide(script: string, cwd: string, rules: Rules): Promise
   return { permissionDecision: "allow", permissionDecisionReason: ALLOWED };
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   let decision: Decision | undefined;
   try {
     const event = await Bun.stdin.json();
@@ -334,5 +334,3 @@ async function main(): Promise<void> {
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", ...decision } }));
   }
 }
-
-if (import.meta.main) await main();

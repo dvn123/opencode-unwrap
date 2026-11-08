@@ -7,7 +7,7 @@ import { cpSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const DIST = join(import.meta.dir, "../dist/claude");
+const DIST = join(import.meta.dir, "../dist/hook");
 const ALLOW = ["git status *", "git diff *", "rg *", "echo *", "ls *", "wc *", "fd *", "head *"];
 const ASK = ["git push *"];
 const DENY = ["rm *", "find *", "python3 - *"];
@@ -73,7 +73,7 @@ beforeAll(() => {
 
 async function hook(tool: string, command: string) {
   const event = { tool_name: tool, tool_input: { command }, cwd: root };
-  const run = Bun.spawn(["bun", join(root, "hooks/shell-unwrap.js")], {
+  const run = Bun.spawn(["bun", join(root, "hooks/shell-unwrap.js"), "claude"], {
     stdin: new Blob([JSON.stringify(event)]),
     stdout: "pipe",
     stderr: "pipe",
@@ -97,7 +97,7 @@ describe("claude hook", () => {
   test("a missing settings file leaves the command to Claude", async () => {
     const bare = mkdtempSync(join(tmpdir(), "shell-unwrap-"));
     cpSync(DIST, join(bare, "hooks"), { recursive: true });
-    const run = Bun.spawn(["bun", join(bare, "hooks/shell-unwrap.js")], {
+    const run = Bun.spawn(["bun", join(bare, "hooks/shell-unwrap.js"), "claude"], {
       stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command: "rm x" } })]),
       stdout: "pipe",
     });

@@ -64,7 +64,7 @@ export async function decide(script: string, rules: Rules): Promise<Verdict | un
   return undefined;
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   let output: Verdict | undefined;
   try {
     const event = await Bun.stdin.json();
@@ -78,5 +78,3 @@ async function main(): Promise<void> {
   }
   process.stdout.write(JSON.stringify(output ?? {}));
 }
-
-if (import.meta.main) await main();

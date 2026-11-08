@@ -1,7 +1,9 @@
 # shell-unwrap
 
 Applies your shell permission rules to wrapped commands, as an OpenCode 2
-plugin, a Claude Code hook, and a Cursor hook that share one peel.
+plugin, a Claude Code hook, and a Cursor hook that share one peel. The two
+hooks are one bundle, `dist/hook/shell-unwrap.js`, which carries tree-sitter's
+WASM once and takes its host as the first argument: `claude` or `cursor`.
 
 OpenCode matches a `shell` rule against a command's raw text, so a deny for
 `rm *` does not catch `timeout 30 rm -rf x`, `FOO=1 rm -rf x`, or
@@ -98,26 +100,25 @@ entry point.
 
 ## Install
 
-coding-agent-sync vendors the three bundles and installs them with the permissions
+coding-agent-sync vendors the two bundles and installs them with the permissions
 it compiles, which rely on them; its permission audit imports `spellings` from
-the Claude bundle. To update the vendored copies:
+the hook bundle. To update the vendored copies:
 
 ```sh
 bun install
 bun run check
 targets=~/.local/share/src/coding-agent-sync/src/coding_agents_sync/targets/shell-unwrap
 cp dist/opencode/shell-unwrap.js "$targets/opencode.js"
-cp dist/claude/shell-unwrap.js "$targets/claude.js"
-cp dist/cursor/shell-unwrap.js "$targets/cursor.js"
+cp dist/hook/shell-unwrap.js "$targets/hook.js"
 ```
 
 Standalone, copy `dist/opencode/shell-unwrap.js` into
-`~/.config/opencode/plugins/`, or copy `dist/claude/shell-unwrap.js` into
+`~/.config/opencode/plugins/`, or copy `dist/hook/shell-unwrap.js` into
 `~/.claude/hooks/` and register it in `settings.json`:
 
 ```json
 {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
-  {"type": "command", "command": "bun ~/.claude/hooks/shell-unwrap.js 2>/dev/null || true"}
+  {"type": "command", "command": "bun ~/.claude/hooks/shell-unwrap.js claude 2>/dev/null || true"}
 ]}]}}
 ```
 
@@ -127,7 +128,7 @@ Standalone, copy `dist/opencode/shell-unwrap.js` into
 bun run check
 ```
 
-`check` typechecks, builds the three bundles, and runs the tests: the peel's
+`check` typechecks, builds the two bundles, and runs the tests: the peel's
 golden tables (`test/spellings.json`, `test/transparent.json`), the OpenCode
 review, and the Claude and Cursor hooks' decisions, run through the built
 bundles. A Bun macro (`src/wasm.ts`) inlines tree-sitter's WASM at transpile
