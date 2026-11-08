@@ -26,7 +26,7 @@ import { dirname, join, resolve } from "node:path";
 import { Language, Parser, type Node } from "web-tree-sitter";
 import { basename, spellings, transparent, words } from "./peel.ts";
 import { denial, readReasons, type Reasons } from "./review.ts";
-import { BASH, TREE_SITTER } from "./wasm.generated.ts";
+import { base64 } from "./wasm.ts" with { type: "macro" };
 
 export { spellings, transparent } from "./peel.ts";
 
@@ -155,9 +155,9 @@ let parser: Parser | undefined;
 
 async function bash(): Promise<Parser> {
   if (!parser) {
-    await Parser.init({ wasmBinary: Uint8Array.fromBase64(TREE_SITTER) });
+    await Parser.init({ wasmBinary: Uint8Array.fromBase64(base64("web-tree-sitter/tree-sitter.wasm")) });
     const created = new Parser();
-    created.setLanguage(await Language.load(Uint8Array.fromBase64(BASH)));
+    created.setLanguage(await Language.load(Uint8Array.fromBase64(base64("tree-sitter-bash/tree-sitter-bash.wasm"))));
     parser = created;
   }
   return parser;

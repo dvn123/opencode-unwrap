@@ -1,0 +1,4 @@
+[install]
+# Typecheck against the OpenCode release the plugin targets, which can be
+# newer than the global minimum release age allows.
+minimumReleaseAgeExcludes = ["@opencode/schema"]

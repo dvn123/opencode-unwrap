@@ -1,7 +1,7 @@
 /**
  * OpenCode's rule evaluation, ported so a peeled spelling is judged exactly as
  * OpenCode judges a command: `Wildcard.match` and the last-match-wins
- * `Permission.evaluate` from OpenCode 2.0.18.
+ * `Permission.evaluate` from OpenCode 2.2.6.
  */
 
 import type { Permission } from "@opencode/schema/permission";

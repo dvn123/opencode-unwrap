@@ -9,17 +9,19 @@
     "./cursor": "./src/cursor.ts"
   },
   "scripts": {
-    "check": "bun run embed && tsc --noEmit && bun run build && bun test",
+    "check": "tsc --noEmit && bun run build && bun test",
     "test": "bun test",
-    "embed": "bun scripts/embed-wasm.ts",
-    "build": "bun run embed && bun build src/opencode.ts --target bun --outfile dist/opencode/shell-unwrap.js && bun build src/claude.ts --target bun --outfile dist/claude/shell-unwrap.js && bun build src/cursor.ts --target bun --outfile dist/cursor/shell-unwrap.js"
+    "build": "bun build src/opencode.ts --target bun --outfile dist/opencode/shell-unwrap.js && bun build src/claude.ts --target bun --outfile dist/claude/shell-unwrap.js && bun build src/cursor.ts --target bun --outfile dist/cursor/shell-unwrap.js"
   },
   "devDependencies": {
     "@opencode/plugin": "2.2.5",
-    "@opencode/schema": "2.2.5",
+    "@opencode/schema": "2.2.6",
     "@types/bun": "^1.4.2",
     "tree-sitter-bash": "0.25.1",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "@opencode/schema": "2.2.6"
   },
   "dependencies": {
     "web-tree-sitter": "0.25.10"

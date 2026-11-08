@@ -127,8 +127,11 @@ Standalone, copy `dist/opencode/shell-unwrap.js` into
 bun run check
 ```
 
-`check` embeds the WASM files, typechecks, builds the three bundles, and runs the
-tests: the peel's golden tables (`test/spellings.json`,
-`test/transparent.json`), the OpenCode review, and the Claude and Cursor hooks' decisions,
-run through the built bundles. The live OpenCode test lives in
-coding-agent-sync (`tests/capabilities/targets/test_opencode_unwrap.py`).
+`check` typechecks, builds the three bundles, and runs the tests: the peel's
+golden tables (`test/spellings.json`, `test/transparent.json`), the OpenCode
+review, and the Claude and Cursor hooks' decisions, run through the built
+bundles. A Bun macro (`src/wasm.ts`) inlines tree-sitter's WASM at transpile
+time. The plugin typechecks against OpenCode 2.2.6's `@opencode/schema`;
+`bunfig.toml` exempts it from the global minimum release age. The live
+OpenCode test lives in coding-agent-sync
+(`tests/capabilities/targets/test_opencode_unwrap.py`).
