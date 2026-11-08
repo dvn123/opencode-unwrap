@@ -110,7 +110,10 @@ match" test knows it. A word that cannot split and starts with literal text
 other than `-` keeps its run-time part inside that one argument: `src/*`
 expands only to names that start `src/`, so `rg -n x src/*.py` cannot meet
 `rg * --pre *`. A bare `$f` stays any text, since it may be an option such as
-`-XPOST` that a rule matches only once spelled out. Git reads settings only
+`-XPOST` that a rule matches only once spelled out, except after a literal
+`--` in a program that ends its options there (`rg`, `grep`, `fd`, `sed`, `jq`
+and the like): `rg -n x -- $f` and `fd -e py | xargs rg -l x --` hold no
+option, so only a rule about a path can meet them. Git reads settings only
 from `-c` and `--config-env` before its subcommand, from `git config`, and
 from a transport URL, so a rule about text inside a word (`git*core.pager*`,
 `git -* config*alias.*`) cannot be met by a value after any other literal
