@@ -9,9 +9,9 @@ OpenCode matches a `shell` rule against a command's raw text, so a deny for
 `rm *` does not catch `timeout 30 rm -rf x`, `FOO=1 rm -rf x`, or
 `/bin/rm -rf x`. The usual workaround is a copy of every deny behind every
 wrapper, which multiplies a ruleset many times over. Claude Code peels some
-wrappers itself, but it matches an allow only against a flat command, so a
-loop, a pipeline into `xargs -n1`, or `timeout -k 5 30` prompts even when every
-program in it is allowed, and it never shows the model why a deny exists.
+wrappers itself and its denies catch most peeled spellings, but a loop, a
+subshell, a command substitution, `xargs -n1`, or `env -u` prompts even when
+every program in it is allowed, and it never shows the model why a deny exists.
 Cursor Desktop's terminal allowlist has no deny list at all, so a broad allow
 such as `git` also allows every `git` command a deny would forbid.
 

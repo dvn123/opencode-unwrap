@@ -1,10 +1,10 @@
 /**
  * Claude Code PreToolUse hook for Bash.
  *
- * Claude Code matches an allow rule only against a flat command: a loop, a
- * command substitution, a subshell, or a wrapper with options prompts even
- * when every program inside it is allowed, and a deny rule's reason never
- * reaches the model. This hook parses the command and judges each command
+ * Claude Code prompts for a loop, a command substitution, a subshell, or a
+ * wrapper it does not peel (`env -u`, `xargs -n1`) even when every program
+ * inside it is allowed, and a deny rule's reason never reaches the model.
+ * This hook parses the command and judges each command
  * inside it with the OpenCode plugin's peel:
  *
  * - it denies the command when any peeled spelling of one matches a deny
