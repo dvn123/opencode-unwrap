@@ -161,8 +161,11 @@ shell	setopt extendedglob; ls	abstain	setopt changes the shell
 # may. $TMPDIR, like $HOME, is fixed for the whole script.
 operands	rg -n x -- $f	allow	
 operands	rg -n x $f	abstain	may match
+operands	rg -e -- $f .	abstain	may match
+operands	rg -n -- $f	abstain	may match
 operands	fd -e py | xargs rg -l x --	allow	
 operands	fd -e py | xargs rg -l x	abstain	may match
+operands	fd -e py | xargs rg -e --	abstain	may match
 constant	ls $TMPDIR	allow	
 constant	TMPDIR=/etc; ls	abstain	assignment to exported TMPDIR
 # A redirect reads or writes a file, judged by the Read and Edit rules: a

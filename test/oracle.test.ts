@@ -166,6 +166,8 @@ function cases(): [string, string][] {
     ["git-boundary: path", "d=$(echo x); git -C $d -c core.pager=less log"],
     ["operands: after --", 'rg -n x -- $(echo -"-pre" sh)'],
     ["operands: xargs after --", "echo --pre sh | xargs rg -n x --"],
+    ["operands: -- as a value", 'rg -e -- $(echo -"-pre" sh) .'],
+    ["operands: xargs after -- as a value", "echo --pre sh | xargs rg -e --"],
     ["loop: rebound", "for v in status; do for v in clean; do true; done; git $v -fd; done"],
     ["loop: read", "for v in status; do read -r v <<< clean; git $v -fd; done"],
     ["loop: literal", "for v in status log; do git $v; done"],
@@ -244,7 +246,6 @@ function readings(argv: string[]): string[] {
   return [argv.join(" "), split.join(" ")];
 }
 
-
 // Git reads settings only from -c and --config-env before its subcommand,
 // from `git config`, and from a transport URL. A rule about text inside a word
 // (`git*core.pager*`) is therefore met only by the words up to the subcommand,
@@ -272,8 +273,11 @@ function namesOption(pattern: string): boolean {
  * for an option rule, those before a `--` that ends the options.
  */
 function ruleWords(pattern: string, argv: string[]): string[] {
+  // A `--` right after an option may be that option's value, as in `rg -e --`.
   const end = argv.indexOf("--");
-  if (ENDS_OPTIONS.includes(argv[0]!) && end !== -1 && namesOption(pattern)) return argv.slice(0, end);
+  if (ENDS_OPTIONS.includes(argv[0]!) && end !== -1 && !argv[end - 1]!.startsWith("-") && namesOption(pattern)) {
+    return argv.slice(0, end);
+  }
   if (argv[0] !== "git" || !isTextRule(pattern)) return argv;
   let index = 1;
   while (index < argv.length && argv[index]!.startsWith("-")) index += GIT_TAKES_VALUE.includes(argv[index]!) ? 2 : 1;
