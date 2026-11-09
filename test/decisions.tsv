@@ -253,3 +253,16 @@ uv-run	uv run -q --no-project python $f	abstain	`uv run * python - *` may match
 uv-run	uv run --python 3.14 python $f	abstain	may match
 uv-run	uv run $tool python - x	deny	
 uv-run	uv run -q python - x < x.py	deny	
+# A loop over a plain glob runs over the names it matches when the hook runs,
+# from the directory the script is in, as zsh expands it: each pass is judged
+# with its name, so git -C meets every directory, bare ones included. No
+# match, or an unknown directory, leaves the variable any text.
+loops	for d in ex*/; do rg -n x "$d"; done	allow	
+loops	for d in */; do git -C "$d" status; done	ask	bare repository
+loops	cd {extra}/.. && for d in */; do git -C $d status; done	ask	bare repository
+loops	for d in nomatch*/; do git -C "$d" status; done	abstain	run-time -C
+loops	(cd bare); for d in */; do git -C "$d" status; done	abstain	run-time directory
+loops	for d in {root}/ex*/; do rg -n x $d; done	allow	
+loops	for d in "$PWD"/ex*/; do rg -n x "$d"; done	allow	
+loops	cd {root} && for d in "$PWD"/*/; do git -C "$d" status; done	ask	bare repository
+loops	for d in "$x"/*/; do git -C "$d" status; done	abstain	run-time -C

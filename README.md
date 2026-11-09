@@ -101,8 +101,10 @@ substitution, a glob, a brace list, the input `xargs` adds) standing for any
 text, including several words or none. What zsh fixes before it runs is
 text, not a wildcard: `$HOME`, `$USER`, `$LOGNAME` and `$TMPDIR`, which the shell
 inherits from the process that runs the hook and which no allowed command can
-reassign, a loop variable over literal words, judged once per word when
-nothing else in the script sets it, and a literal `$(mktemp)`, `$(mktemp -d)`,
+reassign, `$PWD` where the `cd`s before it leave it known, a loop variable
+over literal words or plain globs (`*/`, `"$PWD"/perf-*`), judged once per
+word, or per name the glob matches when the hook runs, when nothing else in
+the script sets it, and a literal `$(mktemp)`, `$(mktemp -d)`,
 `$(mktemp -t PREFIX)` or `$(mktemp /absolute/templateXXXX)`, read as a name in
 `$TMPDIR` or the template's directory with zeros for its random letters, so a
 redirect into it is judged by the Edit rules there. Each rule is then graded against those
