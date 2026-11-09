@@ -98,6 +98,8 @@ cd	cd {root}/sub/.. && ls	allow
 cd	cd .. && ls	abstain	cd outside the working directories
 cd	cd - && ls	abstain	run-time directory
 cd	cd -P {extra} && ls	abstain	cd with options
+# A cd to a missing directory fails and leaves the shell where it was.
+cd	cd missing; echo x > ../escape.txt	abstain	run-time directory
 # git, after cd or with -C, takes a directory shaped like a bare repository
 # (`bare` holds HEAD, objects and refs; `linked` holds HEAD and a commondir
 # naming bare; `dotgit` is bare beside an empty `.git`) as one and runs its
@@ -266,6 +268,8 @@ loops	for d in {root}/ex*/; do rg -n x $d; done	allow
 loops	for d in "$PWD"/ex*/; do rg -n x "$d"; done	allow	
 loops	cd {root} && for d in "$PWD"/*/; do git -C "$d" status; done	ask	bare repository
 loops	for d in "$x"/*/; do git -C "$d" status; done	abstain	run-time -C
+# Without `in`, a loop runs over the positional parameters.
+loops	echo a; for d; do git commit -m "$d"; done	abstain	
 # A program whose operands it writes (tee) is held to the Edit rules for
 # each, as a redirect is; programs.yaml gives the roles.
 files	echo x | tee /etc/hosts	abstain	no Edit rule allows
