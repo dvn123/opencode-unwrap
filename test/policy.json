@@ -10,6 +10,7 @@
       "Bash(wc *)",
       "Bash(fd *)",
       "Bash(head *)",
+      "Bash(mktemp *)",
       "Edit(**)",
       "Edit(//tmp/**)",
       "Bash(setopt pipefail)",

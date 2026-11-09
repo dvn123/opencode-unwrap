@@ -77,6 +77,8 @@ func TestDecisions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// Where `mktemp` with no template puts its file.
+	t.Setenv("TMPDIR", extra)
 	// Directories git would take for a bare repository: `bare`; `linked`,
 	// whose commondir names bare; and `dotgit`, whose empty `.git` directory
 	// git passes over. `bare/work` is a repository of its own.

@@ -49,6 +49,11 @@ command runs or how much environment it sees; `time -o FILE`, `env -C`, and
 `env NAME=value` do not qualify. `xargs` appends its input, or puts it in
 place of its replacement string (`-I`, `-J`), so the command must pass with
 that input in place: an exact rule never carries it, and a guard judges it.
+`hyperfine` with no rule of its own is judged by every script it runs (the
+commands it times and its `--setup`, `--prepare`, `--cleanup` and `--conclude`
+commands), each analysed as a command from where `hyperfine` runs, and by the
+files `--input` reads and `--export-*` and `--output` write; parameter scans,
+other shells and unknown options are left to Claude.
 A narrower rule matching any spelling on the way
 decides instead, so an ask written for `timeout * bq cp` still asks.
 Other assignments, program paths, and the other wrappers never carry an allow:
@@ -96,8 +101,11 @@ substitution, a glob, a brace list, the input `xargs` adds) standing for any
 text, including several words or none. What zsh fixes before it runs is
 text, not a wildcard: `$HOME`, `$USER`, `$LOGNAME` and `$TMPDIR`, which the shell
 inherits from the process that runs the hook and which no allowed command can
-reassign, and a loop variable over literal words, judged once per word when
-nothing else in the script sets it. Each rule is then graded against those
+reassign, a loop variable over literal words, judged once per word when
+nothing else in the script sets it, and a literal `$(mktemp)`, `$(mktemp -d)`,
+`$(mktemp -t PREFIX)` or `$(mktemp /absolute/templateXXXX)`, read as a name in
+`$TMPDIR` or the template's directory with zeros for its random letters, so a
+redirect into it is judged by the Edit rules there. Each rule is then graded against those
 words. A deny or ask rule that matches every value decides the command, so
 `for m in -XPOST; do gh api $m repos/x; done` is denied with the rule's
 reason; one that matches only some values, as a guard does for
@@ -134,8 +142,9 @@ command; a deny or ask is matched ignoring case and, when it names no
 directory, at any depth, so it catches every file it could mean. A relative
 path is resolved through the `cd`s before it, and a `cd` that may not run, or
 runs in a subshell, leaves later relative paths to Claude. A `cd` to a known
-directory needs a `cd` allow rule and is allowed anywhere: what runs there is
-judged as usual, relative paths against it. Paths are judged as
+directory needs a `cd` allow rule and a target inside the working directories
+(the session's and `additionalDirectories`), as Claude itself requires; what
+runs there is judged as usual, relative paths against it. Paths are judged as
 written and with their symlinks resolved when the hook runs; a file replaced
 by a symlink after that is the race every allowed write already has. It leaves to Claude, by
 printing nothing, anything whose effect it cannot bound: zsh parameter flags

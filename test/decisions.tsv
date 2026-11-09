@@ -71,7 +71,7 @@ zsh	TMPPREFIX=/tmp/x; ls	abstain	assignment to TMPPREFIX
 # fixed for the whole script.
 zsh	echo =ls	allow	
 constant	ls $HOME	allow	
-constant	cd $HOME && ls	allow	
+constant	cd $HOME && ls	abstain	cd outside the working directories
 # A loop over literal words binds its variable to each in turn; a name
 # another loop or `read` sets stays any text.
 loop	for f in a b; do rg -n x $f; done	allow	
@@ -92,8 +92,10 @@ assignment	M=$(ls); gh api $M repos/x	abstain	may match
 # cd to a known directory moves where later commands, redirects and git run.
 cd	(cd {extra} && ls)	allow	
 cd	cd {extra} && rg -n x	allow	
-cd	cd / && ls	allow	
-cd	cd / && echo x > y.txt	abstain	no Edit rule allows
+cd	cd / && ls	abstain	cd outside the working directories
+cd	cd /tmp && ls	allow	
+cd	cd {root}/sub/.. && ls	allow	
+cd	cd .. && ls	abstain	cd outside the working directories
 cd	cd - && ls	abstain	run-time directory
 cd	cd -P {extra} && ls	abstain	cd with options
 # git, after cd or with -C, takes a directory shaped like a bare repository
@@ -179,6 +181,7 @@ redirect	wc -l < ~/.ssh/id_ed25519	deny	Read(~/.ssh/**)
 redirect	echo x > yarn.lock	ask	needs approval
 redirect	echo x > /etc/hosts	abstain	no Edit rule allows
 redirect	wc -l < /etc/hosts	abstain	no Read rule allows
+redirect	wc -l < /tmp/shell-unwrap-table.txt	allow	
 redirect	echo x > $f	abstain	run-time path
 redirect	echo x > out-*.txt	abstain	run-time path
 redirect	(cd {extra}); echo x > ../escape.txt	abstain	run-time directory
@@ -204,3 +207,27 @@ arithmetic	read -r n; echo $((n + 1))	abstain
 arithmetic	echo $((i = 2))	abstain	arithmetic assignment
 arithmetic	(( i++ ))	abstain	arithmetic assignment
 arithmetic	echo ${a[$(ls)]}	abstain	
+# hyperfine is judged by every script it times or runs around them, from
+# where it runs, and by the files --input reads and --export-* writes.
+hyperfine	hyperfine -N -w3 -r20 'rg x' 'git status'	allow	
+hyperfine	cd {extra} && hyperfine --warmup=2 -s 'ls' "rg x | head -3"	allow	
+hyperfine	hyperfine 'rg x' 'rm -rf y'	deny	
+hyperfine	hyperfine -p 'git push origin x' 'rg x'	ask	git push
+hyperfine	hyperfine 'rg x' 'make'	abstain	no allow rule
+hyperfine	hyperfine --export-json out.json 'rg x'	allow	
+hyperfine	hyperfine --export-json .env 'rg x'	deny	Edit(//**/.env)
+hyperfine	hyperfine --input ~/.ssh/id_ed25519 'wc -l'	deny	Read(~/.ssh/**)
+hyperfine	hyperfine -P n 1 3 'head -n {n} x'	abstain	hyperfine option -P
+hyperfine	hyperfine "rg $x"	abstain	run-time argument
+hyperfine	hyperfine -S python3 'rg x'	abstain	the shell python3
+hyperfine	(cd {extra}); hyperfine 'rg x'	abstain	run-time directory
+# $(mktemp) with no template, -t or an absolute one names a fresh file in
+# a known directory ($TMPDIR is {extra} here); a relative template does not.
+mktemp	B=$(mktemp -t pr-body.XXXXXX) && echo x > $B && wc -l $B	allow	
+mktemp	D=$(mktemp -d) && rg x > $D/out.txt	allow	
+mktemp	echo x > "$(mktemp /tmp/su-test.XXXX)"	allow	
+mktemp	D=$(mktemp -d); cd $D && echo x > y.txt	allow	
+mktemp	echo x > $(mktemp /etc/hostsXXXX)	abstain	no Edit rule allows
+mktemp	echo x > $(mktemp ./outXXXX)	abstain	run-time path
+mktemp	echo x > $(mktemp -p /tmp)	abstain	run-time path
+mktemp	B=$(mktemp -t .env) && echo x > $B	allow	

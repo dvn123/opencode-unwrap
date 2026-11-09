@@ -72,6 +72,8 @@ async function hook(tool: string, command: string, mode = "default") {
     stdin: new Blob([JSON.stringify(event)]),
     stdout: "pipe",
     stderr: "pipe",
+    // Where `mktemp` with no template puts its file, as in decisions_test.go.
+    env: { ...process.env, TMPDIR: join(root, "extra") },
   });
   const output = await new Response(run.stdout).text();
   expect(await run.exited).toBe(0);
