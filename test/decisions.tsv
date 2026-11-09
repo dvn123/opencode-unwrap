@@ -229,7 +229,11 @@ hyperfine	(cd {extra}); hyperfine 'rg x'	abstain	run-time directory
 mktemp	B=$(mktemp -t pr-body.XXXXXX) && echo x > $B && wc -l $B	allow	
 mktemp	D=$(mktemp -d) && rg x > $D/out.txt	allow	
 mktemp	echo x > "$(mktemp /tmp/su-test.XXXX)"	allow	
-mktemp	D=$(mktemp -d); cd $D && echo x > y.txt	allow	
+# A failed mktemp prints nothing: after `;` the variable may be empty, so
+# `cd $D` goes home, and inside a longer word the rest stands alone.
+mktemp	D=$(mktemp -d); cd $D && echo x > y.txt	abstain	cd to a run-time directory
+mktemp	D=$(mktemp -d) E=$(mktemp -d) && echo x > $D/y.txt	abstain	run-time path
+mktemp	echo x >> "$(mktemp -q /tmp/XXXX)$HOME/.zshrc"	abstain	run-time path
 mktemp	echo x > $(mktemp /etc/hostsXXXX)	abstain	no Edit rule allows
 mktemp	echo x > $(mktemp ./outXXXX)	abstain	run-time path
 mktemp	echo x > $(mktemp -p /tmp)	abstain	run-time path
