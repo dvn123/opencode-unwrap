@@ -126,14 +126,16 @@ text	export X=$SECRET_TOKEN	deny
 # A word that starts with literal text other than `-` and cannot split, a
 # glob like `src/*` or a plain `src/$f`, expands only to words that start
 # with that text, so no option deny such as `rg * --pre *` can match it. A
-# bare glob or value, an unquoted $(…), or a word starting `-` still may.
+# bare glob or value, or an unquoted $(…), still may: in a program that ends
+# its options at `--`, that is denied with the advice to use one. A word
+# starting `-` is an option `--` would not move, so it stays with Claude.
 inside	rg -n x src/*.ts	allow	
 inside	rg -n x src/$f	allow	
 inside	rg -n x "src/$(ls)"	allow	
-inside	rg -n x *	abstain	may match
-inside	rg -n x $f	abstain	may match
-inside	rg -n x src/$(ls)	abstain	may match
-inside	rg -n x src/${f:-x}	abstain	may match
+inside	rg -n x *	deny	after `--`
+inside	rg -n x $f	deny	after `--`
+inside	rg -n x src/$(ls)	deny	after `--`
+inside	rg -n x src/${f:-x}	deny	after `--`
 inside	rg -n x --glob=src/*	abstain	may match
 inside	git p* origin	abstain	may match
 inside	timeout 5 r* -rf x	abstain	may match
@@ -160,12 +162,12 @@ shell	setopt extendedglob; ls	abstain	setopt changes the shell
 # words as operands, so an option guard cannot meet them; a path guard still
 # may. $TMPDIR, like $HOME, is fixed for the whole script.
 operands	rg -n x -- $f	allow	
-operands	rg -n x $f	abstain	may match
 operands	rg -e -- $f .	abstain	may match
 operands	rg -n -- $f	abstain	may match
+operands	rg -n x $f	deny	after `--`
 operands	fd -e py | xargs rg -l x --	allow	
-operands	fd -e py | xargs rg -l x	abstain	may match
 operands	fd -e py | xargs rg -e --	abstain	may match
+operands	fd -e py | xargs rg -l x	deny	after `--`
 constant	ls $TMPDIR	allow	
 constant	TMPDIR=/etc; ls	abstain	assignment to exported TMPDIR
 # A redirect reads or writes a file, judged by the Read and Edit rules: a
@@ -238,3 +240,16 @@ mktemp	echo x > $(mktemp /etc/hostsXXXX)	abstain	no Edit rule allows
 mktemp	echo x > $(mktemp ./outXXXX)	abstain	run-time path
 mktemp	echo x > $(mktemp -p /tmp)	abstain	run-time path
 mktemp	B=$(mktemp -t .env) && echo x > $B	allow	
+# A git rule for another subcommand cannot meet the run-time words after a
+# built-in one; after an alias, which may stand for any subcommand, it can.
+git-text	git -C {extra} diff $x	abstain	no allow rule
+git-text	git -C {extra} st $x	abstain	`git -* clean *` may match
+git-text	git -C {extra} clean $x	deny	
+# uv run starts its literal target with every later word as an argument, so
+# a rule for another target cannot meet them; one for the same target can.
+uv-run	uv run tool report --out $f	allow	
+uv-run	uv run -q --with x -m pytest $f	allow	
+uv-run	uv run -q --no-project python $f	abstain	`uv run * python - *` may match
+uv-run	uv run --python 3.14 python $f	abstain	may match
+uv-run	uv run $tool python - x	deny	
+uv-run	uv run -q python - x < x.py	deny	

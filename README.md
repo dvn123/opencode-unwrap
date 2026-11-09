@@ -121,11 +121,20 @@ expands only to names that start `src/`, so `rg -n x src/*.py` cannot meet
 `-XPOST` that a rule matches only once spelled out, except after a literal
 `--` in a program that ends its options there (`rg`, `grep`, `fd`, `sed`, `jq`
 and the like): `rg -n x -- $f` and `fd -e py | xargs rg -l x --` hold no
-option, so only a rule about a path can meet them. Git reads settings only
+option, so only a rule about a path can meet them. When only such words keep a
+command from running, and a `--` before them would settle it, the Claude hook
+denies it with that advice instead of leaving a prompt; the other hosts' own
+rules decide it. Git reads settings only
 from `-c` and `--config-env` before its subcommand, from `git config`, and
 from a transport URL, so a rule about text inside a word (`git*core.pager*`,
 `git -* config*alias.*`) cannot be met by a value after any other literal
-subcommand: `git diff $M..HEAD` is allowed, `git -c $x diff` is not. A rule
+built-in subcommand: `git diff $M..HEAD` is allowed, `git -c $x diff` is not.
+Git also reads its subcommand once, so a rule for another subcommand
+(`git -* credential fill *`) cannot be met by those values either; one for the
+same subcommand can, and an alias may stand for any subcommand. `uv run`
+starts its literal target with every later word as an argument, so a rule for
+another target (`uv run * python - *` after `uv run pytest`) is judged the
+same way. A rule
 starting with `*` is about the script's text, such as a variable it names,
 which no value adds, so it is judged on the text and on every assignment and
 `export` in it. Git started in a directory shaped like a bare repository

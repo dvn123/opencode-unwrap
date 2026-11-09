@@ -113,10 +113,15 @@ describe("claude hook", () => {
   });
 
   test("the binary decides a batch as each host does", async () => {
-    const items = ["git status", "timeout 5 rm x", "for r in o; do git push $r; done"].map((script) => ({
-      script,
-      cwd: root,
-    }));
+    // The advice to put `--` before run-time paths is Claude's alone, and
+    // never hides a deny later in the script.
+    const items = [
+      "git status",
+      "timeout 5 rm x",
+      "for r in o; do git push $r; done",
+      "rg -n x $f",
+      "rg -n x $f; rm -rf y",
+    ].map((script) => ({ script, cwd: root }));
     const decide = async (host: string) => {
       const run = Bun.spawn([join(DIST, "shell-unwrap"), "decide", host, join(root, "settings.json")], {
         stdin: new Blob([JSON.stringify(items)]),
@@ -124,9 +129,9 @@ describe("claude hook", () => {
       });
       return JSON.parse(await new Response(run.stdout).text());
     };
-    expect(await decide("claude")).toEqual(["allow", "deny", "ask"]);
-    expect(await decide("cursor")).toEqual([null, "deny", "ask"]);
-    expect(await decide("codex")).toEqual([null, "deny", null]);
+    expect(await decide("claude")).toEqual(["allow", "deny", "ask", "deny", "deny"]);
+    expect(await decide("cursor")).toEqual([null, "deny", "ask", null, "deny"]);
+    expect(await decide("codex")).toEqual([null, "deny", null, null, "deny"]);
   });
 
   test("the binary prints the peel without reading stdin", async () => {
