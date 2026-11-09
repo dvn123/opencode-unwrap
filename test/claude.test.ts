@@ -91,8 +91,9 @@ describe("claude hook", () => {
     }
   });
 
-  test("bypass mode drops asks and keeps denies", async () => {
+  test("bypass mode drops asks and the -- advice, and keeps denies", async () => {
     expect(await hook("Bash", "git push origin main", "bypassPermissions")).toBeUndefined();
+    expect(await hook("Bash", "rg -n x $f", "bypassPermissions")).toBeUndefined();
     expect((await hook("Bash", "timeout 5 rm build", "bypassPermissions"))?.permissionDecision).toBe("deny");
   });
 

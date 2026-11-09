@@ -15,6 +15,11 @@ wrapper	/usr/bin/time -p rg x	allow
 wrapper	env -u HOME timeout 30 git status	allow	
 wrapper	xargs -n1 git status	allow	
 wrapper	fd x | xargs -n1 wc -l	allow	
+# A flag bundled before a value option is checked on its own: xargs -p prompts.
+wrapper	xargs -pI {} git status	abstain	no allow rule covers every value
+wrapper	xargs -oI{} git status	abstain	no allow rule covers every value
+# GNU xargs -i takes its replacement string joined, never the next word.
+guard	echo a | xargs -id rm -rf d	deny	use trash
 wrapper	fd -x wc -l {}	abstain	by its arguments
 prefix	GIT_EDITOR=true git status	allow	
 prefix	NO_COLOR=1 LANG=C.UTF-8 git status	allow	
@@ -274,6 +279,11 @@ loops	echo a; for d; do git commit -m "$d"; done	abstain
 # each, as a redirect is; programs.yaml gives the roles.
 files	echo x | tee /etc/hosts	abstain	no Edit rule allows
 files	echo x | tee sub/.env	deny	Edit(//**/.env)
+# A file xargs names is known only at run time.
+files	echo .env | xargs tee	abstain	run-time path
+files	echo a | xargs -I{} tee {}.bak	abstain	run-time path
+files	echo a | xargs -I{} hyperfine --export-json {} "git status"	abstain	run-time path
+files	echo a | xargs -I{} hyperfine --input {} "git status"	abstain	run-time path
 files	timeout 5 tee out.txt < in.txt	allow	
 # In a bundle, the flag that takes a value takes `--` when it comes last.
 operands	rg -ne -- $f	abstain	may match
