@@ -5,8 +5,11 @@
   "echo rm -rf x": [
     "echo rm -r -f x"
   ],
-  "git commit -m \"FOO=1 rm -rf x\"": [],
+  "git commit -m \"FOO=1 rm -rf x\"": [
+    "git commit -m FOO=1 rm -rf x"
+  ],
   "FOO=\"x rm\" ls": [
+    "FOO=x rm ls",
     "ls"
   ],
   "FOO=1 BAR=2 rm -rf x": [
@@ -15,9 +18,11 @@
     "rm -r -f x"
   ],
   "FOO=\"a b\" git commit -m \"retries=3 and rm it\"": [
-    "git commit -m \"retries=3 and rm it\""
+    "FOO=a b git commit -m retries=3 and rm it",
+    "git commit -m retries=3 and rm it"
   ],
   "FOO=a\\ b rm -rf x": [
+    "FOO=a b rm -rf x",
     "rm -rf x",
     "rm -r -f x"
   ],
@@ -103,6 +108,7 @@
     "rm -r -f x"
   ],
   "env -S 'rm -rf x'": [
+    "env -S rm -rf x",
     "rm -rf x",
     "rm -r -f x"
   ],
@@ -157,7 +163,10 @@
     "rm",
     "rm <xargs-input>"
   ],
-  "git commit -m \"-fu\"": [],
+  "git commit -m \"-fu\"": [
+    "git commit -m -fu",
+    "git commit -m -f -u"
+  ],
   "fd -extra": [],
   "terraform -chdir=infra plan": [
     "terraform -chdir infra plan"

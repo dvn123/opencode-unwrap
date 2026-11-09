@@ -6,6 +6,9 @@ import { type Evaluation, explain, review } from "../src/opencode.ts";
 // The plugin asks the built binary, as it does once installed.
 const BINARY = join(import.meta.dir, "../dist/hook/shell-unwrap");
 
+// The policy shell-unwrap.json carries, as the Claude table judges under it.
+const { policy: POLICY } = await Bun.file(join(import.meta.dir, "policy.json")).json();
+
 const RULES: Permission.Ruleset = [
   { action: "shell", resource: "*", effect: "ask" },
   { action: "shell", resource: "./gradlew *", effect: "allow" },
@@ -23,7 +26,7 @@ async function judged(command: string, effect: Permission.Effect, action = "shel
     loads++;
     return RULES;
   };
-  await review(event, rules, {}, BINARY);
+  await review(event, rules, { reasons: {}, policy: POLICY }, BINARY);
   return { effect: event.effect, message: event.message, loads };
 }
 
@@ -69,7 +72,7 @@ describe("review", () => {
 
   test("allows only when every resource passes", async () => {
     const event: Evaluation = { action: "shell", resources: ["timeout 30 git status", "unknown"], effect: "ask" };
-    await review(event, async () => RULES, {}, BINARY);
+    await review(event, async () => RULES, { reasons: {}, policy: POLICY }, BINARY);
     expect(event.effect).toBe("ask");
   });
 
@@ -90,7 +93,7 @@ describe("review", () => {
     const offline = async (): Promise<Permission.Ruleset> => {
       throw new Error("offline");
     };
-    await review(event, offline, {}, BINARY);
+    await review(event, offline, { reasons: {}, policy: POLICY }, BINARY);
     expect(event).toEqual({
       action: "shell",
       resources: ["nohup rm -rf x"],
@@ -105,7 +108,7 @@ describe("reasons", () => {
 
   async function reasoned(command: string, effect: Permission.Effect) {
     const event: Evaluation = { action: "shell", resources: [command], effect };
-    await review(event, async () => RULES, REASONS, BINARY);
+    await review(event, async () => RULES, { reasons: REASONS, policy: POLICY }, BINARY);
     return { effect: event.effect, message: event.message };
   }
 

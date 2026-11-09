@@ -15,7 +15,8 @@
       "Edit(**)",
       "Edit(//tmp/**)",
       "Bash(setopt pipefail)",
-      "Bash(cd *)"
+      "Bash(cd *)",
+      "Bash(tee *)"
     ],
     "ask": [
       "Bash(git push *)",
@@ -49,5 +50,125 @@
   "reasons": {
     "rm *": "use trash",
     "python3 - *": "write a script"
+  },
+  "policy": {
+    "wrappers": {
+      "builtin": [],
+      "command": [],
+      "nocorrect": [],
+      "noglob": [],
+      "nohup": [],
+      "env": [
+        "-i",
+        "--ignore-environment",
+        "-u",
+        "--unset"
+      ],
+      "nice": [
+        "-n",
+        "--adjustment"
+      ],
+      "stdbuf": [
+        "-e",
+        "-i",
+        "-o",
+        "--error",
+        "--input",
+        "--output"
+      ],
+      "time": [
+        "-p"
+      ],
+      "timeout": [
+        "-k",
+        "--kill-after",
+        "-s",
+        "--signal",
+        "--foreground",
+        "--preserve-status",
+        "-v",
+        "--verbose"
+      ],
+      "xargs": [
+        "-0",
+        "-d",
+        "-E",
+        "-I",
+        "-J",
+        "-L",
+        "-n",
+        "-P",
+        "-r",
+        "-s",
+        "-t",
+        "-x",
+        "--delimiter",
+        "--exit",
+        "--max-args",
+        "--max-chars",
+        "--max-lines",
+        "--max-procs",
+        "--no-run-if-empty",
+        "--null",
+        "--verbose"
+      ],
+      "hyperfine": [
+        "*"
+      ]
+    },
+    "assignments": [
+      "GIT_EDITOR=true",
+      "GIT_OPTIONAL_LOCKS=0",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "IFS=",
+      "IFS=,",
+      "IFS=|",
+      "IFS=\t",
+      "GOEXPERIMENT",
+      "GOOS",
+      "GOARCH",
+      "CGO_ENABLED",
+      "GO111MODULE",
+      "RUST_BACKTRACE",
+      "RUST_LOG",
+      "NODE_ENV",
+      "PYTHONUNBUFFERED",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
+      "PYTEST_DEBUG",
+      "LANG",
+      "LANGUAGE",
+      "LC_ALL",
+      "LC_CTYPE",
+      "LC_TIME",
+      "CHARSET",
+      "TERM",
+      "COLORTERM",
+      "NO_COLOR",
+      "FORCE_COLOR",
+      "TZ",
+      "LS_COLORS",
+      "LSCOLORS",
+      "GREP_COLOR",
+      "GREP_COLORS",
+      "GCC_COLORS",
+      "TIME_STYLE",
+      "BLOCK_SIZE",
+      "BLOCKSIZE",
+      "COLUMNS",
+      "LINES",
+      "CLICOLOR",
+      "CLICOLOR_FORCE",
+      "CI",
+      "DEBIAN_FRONTEND",
+      "GIT_TERMINAL_PROMPT"
+    ],
+    "shell_options": [
+      "errexit",
+      "nounset",
+      "pipefail",
+      "verbose",
+      "xtrace"
+    ]
   }
 }

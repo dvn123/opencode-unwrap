@@ -15,7 +15,7 @@ wrapper	/usr/bin/time -p rg x	allow
 wrapper	env -u HOME timeout 30 git status	allow	
 wrapper	xargs -n1 git status	allow	
 wrapper	fd x | xargs -n1 wc -l	allow	
-wrapper	fd -x wc -l {}	abstain	runs or writes by its arguments
+wrapper	fd -x wc -l {}	abstain	by its arguments
 prefix	GIT_EDITOR=true git status	allow	
 prefix	NO_COLOR=1 LANG=C.UTF-8 git status	allow	
 prefix	NO_COLOR=$X git status	abstain	
@@ -163,7 +163,7 @@ shell	setopt extendedglob; ls	abstain	setopt changes the shell
 # may. $TMPDIR, like $HOME, is fixed for the whole script.
 operands	rg -n x -- $f	allow	
 operands	rg -e -- $f .	abstain	may match
-operands	rg -n -- $f	abstain	may match
+operands	rg -n -- $f	allow	
 operands	rg -n x $f	deny	after `--`
 operands	fd -e py | xargs rg -l x --	allow	
 operands	fd -e py | xargs rg -e --	abstain	may match
@@ -190,7 +190,7 @@ redirect	wc -l < /tmp/shell-unwrap-table.txt	allow
 redirect	echo x > $f	abstain	run-time path
 redirect	echo x > out-*.txt	abstain	run-time path
 redirect	(cd {extra}); echo x > ../escape.txt	abstain	run-time directory
-redirect	ls | tee out.txt	abstain	runs or writes by its arguments
+redirect	ls | tee out.txt	allow	
 # Symlinks: the file the shell opens is judged. `escape` leads outside every
 # allowed tree, `inner` into the extra working directory, and `env-link` is
 # a dangling link to .env that writing through would create. /tmp is
@@ -222,9 +222,9 @@ hyperfine	hyperfine 'rg x' 'make'	abstain	no allow rule
 hyperfine	hyperfine --export-json out.json 'rg x'	allow	
 hyperfine	hyperfine --export-json .env 'rg x'	deny	Edit(//**/.env)
 hyperfine	hyperfine --input ~/.ssh/id_ed25519 'wc -l'	deny	Read(~/.ssh/**)
-hyperfine	hyperfine -P n 1 3 'head -n {n} x'	abstain	hyperfine option -P
-hyperfine	hyperfine "rg $x"	abstain	run-time argument
-hyperfine	hyperfine -S python3 'rg x'	abstain	the shell python3
+hyperfine	hyperfine -P n 1 3 'head -n {n} x'	abstain	the option -P
+hyperfine	hyperfine "rg $x"	abstain	run-time script
+hyperfine	hyperfine -S python3 'rg x'	abstain	the option -S
 hyperfine	(cd {extra}); hyperfine 'rg x'	abstain	run-time directory
 # $(mktemp) with no template, -t or an absolute one names a fresh file in
 # a known directory ($TMPDIR is {extra} here); a relative template does not.
@@ -266,3 +266,11 @@ loops	for d in {root}/ex*/; do rg -n x $d; done	allow
 loops	for d in "$PWD"/ex*/; do rg -n x "$d"; done	allow	
 loops	cd {root} && for d in "$PWD"/*/; do git -C "$d" status; done	ask	bare repository
 loops	for d in "$x"/*/; do git -C "$d" status; done	abstain	run-time -C
+# A program whose operands it writes (tee) is held to the Edit rules for
+# each, as a redirect is; programs.yaml gives the roles.
+files	echo x | tee /etc/hosts	abstain	no Edit rule allows
+files	echo x | tee sub/.env	deny	Edit(//**/.env)
+files	timeout 5 tee out.txt < in.txt	allow	
+# In a bundle, the flag that takes a value takes `--` when it comes last.
+operands	rg -ne -- $f	abstain	may match
+uv-run	uv run python /tmp/x.py	allow	

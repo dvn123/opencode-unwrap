@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -21,26 +22,33 @@ func golden[T any](t *testing.T, name string) map[string]T {
 }
 
 // Exact lists: a missing spelling lets a denied command through, and an extra
-// one can deny a command that never runs the denied program. coding-agent-sync
-// replays this table against its port.
+// one can deny a command that never runs the denied program.
 func TestSpellings(t *testing.T) {
 	for command, expected := range golden[[]string](t, "spellings.json") {
-		if got := Spellings(command); !slices.Equal(got, expected) {
-			t.Errorf("Spellings(%q) = %q, want %q", command, got, expected)
+		if got := append([]string{}, Peeled(command)...); !slices.Equal(got, expected) {
+			t.Errorf("Peeled(%q) = %q, want %q", command, got, expected)
 		}
 	}
 }
 
-// The one layer an allow is carried through, or null. coding-agent-sync
-// replays this table against its Claude Code hook.
+// The one layer an allow is carried through under test/policy.json's
+// policy, or null.
 func TestTransparent(t *testing.T) {
+	var file struct {
+		Policy Policy `json:"policy"`
+	}
+	data, err := os.ReadFile("../../test/policy.json")
+	if err != nil || json.Unmarshal(data, &file) != nil {
+		t.Fatal("cannot read test/policy.json")
+	}
 	for command, expected := range golden[*string](t, "transparent.json") {
-		got, ok := Transparent(command)
+		inner, ok := file.Policy.Peel(TextWords(command))
+		got := strings.Join(inner, " ")
 		switch {
 		case expected == nil && ok:
-			t.Errorf("Transparent(%q) = %q, want none", command, got)
+			t.Errorf("Peel(%q) = %q, want none", command, got)
 		case expected != nil && (!ok || got != *expected):
-			t.Errorf("Transparent(%q) = %q, %v, want %q", command, got, ok, *expected)
+			t.Errorf("Peel(%q) = %q, %v, want %q", command, got, ok, *expected)
 		}
 	}
 }

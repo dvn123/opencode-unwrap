@@ -51,12 +51,13 @@ func tableRules(t *testing.T, root string) Rules {
 	var policy struct {
 		Permissions Permissions `json:"permissions"`
 		Reasons     Reasons     `json:"reasons"`
+		Policy      Policy      `json:"policy"`
 	}
 	if err := json.Unmarshal(data, &policy); err != nil {
 		t.Fatal(err)
 	}
 	rules := BuildRules(policy.Permissions, policy.Reasons)
-	rules.Root = root
+	rules.Root, rules.Policy = root, policy.Policy
 	return rules
 }
 

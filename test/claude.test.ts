@@ -61,9 +61,9 @@ beforeAll(() => {
   writeFileSync(join(root, "linked/commondir"), "../bare\n");
   cpSync(DIST, join(root, "hooks"), { recursive: true });
   const policy = readFileSync(join(import.meta.dir, "policy.json"), "utf8").replaceAll("{extra}", join(root, "extra"));
-  const { permissions, reasons } = JSON.parse(policy);
+  const { permissions, reasons, policy: judgement } = JSON.parse(policy);
   writeFileSync(join(root, "settings.json"), JSON.stringify({ permissions }));
-  writeFileSync(join(root, "shell-unwrap.json"), JSON.stringify({ reasons }));
+  writeFileSync(join(root, "shell-unwrap.json"), JSON.stringify({ reasons, policy: judgement }));
 });
 
 async function hook(tool: string, command: string, mode = "default") {

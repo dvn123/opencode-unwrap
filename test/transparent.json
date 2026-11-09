@@ -7,7 +7,7 @@
   "nice --adjustment=5 git status": "git status",
   "time -o out git status": null,
   "/tmp/timeout 30 git status": null,
-  "\\timeout 30 git status": null,
+  "\\timeout 30 git status": "git status",
   "env git status": "git status",
   "env -i git status": "git status",
   "env -u HOME git status": "git status",

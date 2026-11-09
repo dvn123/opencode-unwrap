@@ -41,18 +41,28 @@ interface Verdict {
   readonly needsRules?: boolean;
 }
 
+/** What shell-unwrap.json adds to the rules: deny reasons, and the policy the binary reads. */
+export interface Extras {
+  readonly reasons: Reasons;
+  readonly policy: Record<string, unknown>;
+}
+
 /**
- * Reads `{"reasons": {"<rule pattern>": "<reason>"}}`. Reasons are advice, so
- * a missing or unreadable file leaves them out rather than failing the caller,
- * which would drop the wrapped-command denies with it.
+ * Reads `{"reasons": {"<rule pattern>": "<reason>"}, "policy": {…}}`. Both are
+ * optional, so a missing or unreadable file leaves them out rather than
+ * failing the caller, which would drop the wrapped-command denies with it.
  */
-export async function readReasons(path: string): Promise<Reasons> {
+export async function readExtras(path: string): Promise<Extras> {
   try {
-    const reasons = (await Bun.file(path).json())?.reasons;
-    if (!reasons || typeof reasons !== "object") return {};
-    return Object.fromEntries(Object.entries(reasons).filter(([, reason]) => typeof reason === "string")) as Reasons;
+    const file = await Bun.file(path).json();
+    const reasons = file?.reasons && typeof file.reasons === "object" ? file.reasons : {};
+    const policy = file?.policy && typeof file.policy === "object" ? file.policy : {};
+    return {
+      reasons: Object.fromEntries(Object.entries(reasons).filter(([, reason]) => typeof reason === "string")) as Reasons,
+      policy,
+    };
   } catch {
-    return {};
+    return { reasons: {}, policy: {} };
   }
 }
 
@@ -66,11 +76,11 @@ export async function readReasons(path: string): Promise<Reasons> {
 export async function review(
   event: Evaluation,
   rules: () => Promise<Permission.Ruleset>,
-  reasons: Reasons = {},
+  { reasons, policy }: Extras = { reasons: {}, policy: {} },
   binary = BINARY,
 ): Promise<void> {
   if (event.action !== "shell" || event.effect === "deny") return;
-  const request = { action: event.action, resources: event.resources, effect: event.effect, reasons };
+  const request = { action: event.action, resources: event.resources, effect: event.effect, reasons, policy };
   let verdict: Verdict;
   try {
     verdict = await ask<Verdict>(binary, "review", request);
@@ -119,8 +129,9 @@ interface Blocked {
 const plugin: Plugin.Plugin = {
   id: "shell-unwrap",
   async setup(ctx) {
-    // Deny reasons live beside the plugins directory.
-    const reasons = await readReasons(`${import.meta.dir}/../shell-unwrap.json`);
+    // Deny reasons and the policy live beside the plugins directory.
+    const extras = await readExtras(`${import.meta.dir}/../shell-unwrap.json`);
+    const { reasons } = extras;
     // The rules OpenCode itself evaluates: the agent's, then the session's.
     async function rules(sessionID: string, agent?: string): Promise<Permission.Ruleset> {
       const session = await ctx.session.get({ sessionID });
@@ -129,7 +140,7 @@ const plugin: Plugin.Plugin = {
       const loaded = await ctx.agent.get({ agentID });
       return [...loaded.data.permissions, ...(session.permissions ?? [])];
     }
-    await ctx.permission.hook("evaluate", (event) => review(event, () => rules(event.sessionID, event.agent), reasons));
+    await ctx.permission.hook("evaluate", (event) => review(event, () => rules(event.sessionID, event.agent), extras));
     if (Object.keys(reasons).length === 0) return;
     await ctx.tool.hook("execute.after", async (event) => {
       if (event.tool !== "shell" || event.status !== "error") return;

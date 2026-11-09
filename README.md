@@ -19,14 +19,27 @@ such as `git` also allows every `git` command a deny would forbid.
 
 ## How it works
 
-Every entry point peels launch prefixes from a command, repeatedly, and judges
-each peeled spelling by the host's own rules. It peels:
+shell-unwrap applies rules; it holds none. It reads three inputs:
 
-- leading `NAME=value` assignments and redirects (`> out`, `2>&1`);
-- a program path or quoting, so `/bin/rm`, `\rm`, and `"rm"` are judged as `rm`;
-- `builtin`, `command`, `doas`, `env` (including `-S`), `exec`, `nice`,
-  `nocorrect`, `noglob`, `nohup`, `stdbuf`, `sudo`, `time`, `timeout`, and
-  `xargs`, with the options each takes.
+- the host's rules: Claude Code's `permissions` (Bash, Read and Edit rules and
+  `additionalDirectories`), or the deny and ask rules in the `shell-unwrap.json`
+  beside the other hosts' binary;
+- the policy in that `shell-unwrap.json`: the wrappers an allow carries through,
+  each with the options that keep it the same command (`*` for every option
+  its grammar reads), the assignments that change nothing a rule decides
+  (`NAME=value`, or `NAME` for any plain value, which `export` may also set),
+  and the shell options a script may set with `setopt` or `set`;
+- the grammar in `internal/unwrap/programs.yaml`: facts about how programs read
+  their arguments, which options take values, where a wrapper's command starts,
+  where `--` ends the options, and what an argument does (a directory, a
+  setting, a script it runs, a file it reads or writes, an option that acts by
+  itself).
+
+Every entry point peels launch prefixes from a command, repeatedly, and judges
+each peeled spelling by the rules. It peels leading `NAME=value` assignments, a
+program path (`/bin/rm` is judged as `rm`), and every wrapper the grammar
+lists, with the options each takes. Words come from mvdan/sh with their quoting
+removed, so `\rm` and `"rm"` are `rm`.
 
 The innermost command is also judged with its flags read apart: a bundle of up
 to four short flags split (`-fu` as `-f -u`), a joined value detached
@@ -36,29 +49,26 @@ written for `-f` or `--method POST` needs no copy for each spelling. A longer
 run of letters is a single-dash long option (`-extra`) and stays whole.
 
 When the rules deny a peeled spelling, the command is denied, and when a rule
-asks for one, an allowed command asks. The one allow it
-carries goes the other way: a command that would otherwise ask is allowed when
-peeling only transparent wrappers and harmless assignments (`GIT_EDITOR=true`,
-`PYTHONDONTWRITEBYTECODE=1`, and the `IFS=` separators `read` takes) reaches
-an allow rule, so
-`timeout 30 git status` runs wherever `git status` does. Transparent means
-`builtin`, `command`, `env -i` and `env -u`, `nice`, `nocorrect`, `noglob`,
-`nohup`, `stdbuf`, `time -p`, `timeout`, and `xargs`, named bare or from
-`/bin` or `/usr/bin`, with only the options that change when or how the
-command runs or how much environment it sees; `time -o FILE`, `env -C`, and
-`env NAME=value` do not qualify. `xargs` appends its input, or puts it in
-place of its replacement string (`-I`, `-J`), so the command must pass with
-that input in place: an exact rule never carries it, and a guard judges it.
-`hyperfine` with no rule of its own is judged by every script it runs (the
-commands it times and its `--setup`, `--prepare`, `--cleanup` and `--conclude`
-commands), each analysed as a command from where `hyperfine` runs, and by the
-files `--input` reads and `--export-*` and `--output` write; parameter scans,
-other shells and unknown options are left to Claude.
-A narrower rule matching any spelling on the way
-decides instead, so an ask written for `timeout * bq cp` still asks.
-Other assignments, program paths, and the other wrappers never carry an allow:
-they change the program, its user, or its environment, and `./gradlew` must
-not inherit anything from `gradlew`.
+asks for one, an allowed command asks. The one allow it carries goes the other
+way: a command that would otherwise ask is allowed when peeling only the
+policy's wrappers, with their listed literal options, and its assignments
+reaches an allow rule, so `timeout 30 git status` runs wherever `git status`
+does. A wrapper is named bare or from `/bin` or `/usr/bin`. `xargs` appends
+its input, or puts it in place of its replacement string (`-I`, `-J`), so the
+command must pass with that input in place: an exact rule never carries it,
+and a guard judges it. A wrapper whose grammar runs scripts (`hyperfine`) is
+judged by every script it runs, each analysed as a command from where it runs,
+when no rule of its own decides it. A narrower rule matching any spelling on
+the way decides instead, so an ask written for `timeout * bq cp` still asks.
+Other assignments, program paths, and wrappers outside the policy never carry
+an allow: they change the program, its user, or its environment, and
+`./gradlew` must not inherit anything from `gradlew`.
+
+Through every layer, what the arguments do is judged too: a file an argument
+reads or writes (`tee out.txt`, `hyperfine --export-json f`) must pass the
+Read and Edit rules as a redirect does, and an option that acts by itself
+(`find -exec`, `fd -x`) leaves the command to Claude. A launcher whose rules
+name its command with it (`uv run`, as `uv run * python - *`) is not peeled.
 
 It does not interpret `sh -c` or `eval` payloads, or skip options between a
 program and its subcommand: a rule set covers those with a `prog -* sub` hole,
@@ -123,7 +133,10 @@ expands only to names that start `src/`, so `rg -n x src/*.py` cannot meet
 `-XPOST` that a rule matches only once spelled out, except after a literal
 `--` in a program that ends its options there (`rg`, `grep`, `fd`, `sed`, `jq`
 and the like): `rg -n x -- $f` and `fd -e py | xargs rg -l x --` hold no
-option, so only a rule about a path can meet them. When only such words keep a
+option, so only a rule about a path can meet them. The `--` counts only when
+no option takes it as its value: the grammar lists the value options of `rg`,
+`grep` and `fd`, so `rg -n -- $f` qualifies and `rg -ne -- $f` does not; for
+the others, any option just before `--` voids it. When only such words keep a
 command from running, and a `--` before them would settle it, the Claude hook
 denies it with that advice instead of leaving a prompt; the other hosts' own
 rules decide it. Git reads settings only
@@ -163,9 +176,9 @@ printing nothing, anything whose effect it cannot bound: zsh parameter flags
 `print -P` (prompt substitution runs `$(...)`), assignments outside a command,
 a loop, `read`, `printf -v` or `print -v` that sets an exported or zsh-special
 variable (`path`, `EDITOR`), builtins that change the shell (`eval`, `trap`,
-and `setopt` or `export` beyond error handling, tracing and harmless
-variables such as `GIT_OPTIONAL_LOCKS=0`), redirects to run-time paths, `tee`,
-`find` actions, `fd -x`, `cd` to a run-time directory, function definitions,
+and `setopt` or `export` beyond the policy's shell options and
+assignments), redirects to run-time paths, acting options (`find -exec`,
+`fd -x`), `cd` to a run-time directory, function definitions,
 dynamic program names, and control or Unicode blank characters.
 
 The analysis assumes the zsh Claude Code runs on macOS: EXTENDED_GLOB,
@@ -271,7 +284,8 @@ or later and the two TypeScript entry points with Bun, and runs the black-box
 tests through the built binary. Every Claude decision case is one row of
 `test/decisions.tsv`, judged under `test/policy.json` both in process
 (`internal/unwrap/decisions_test.go`) and through the binary
-(`test/claude.test.ts`); add a row for each behaviour. The rest are the peel's golden tables
+(`test/claude.test.ts`); add a row for each behaviour. A program's arguments are
+taught in `internal/unwrap/programs.yaml`, whose header lists the fields. The rest are the peel's golden tables
 (`test/spellings.json`, `test/transparent.json`, from `go test`), the OpenCode
 review, the Claude, Codex and Cursor hooks' decisions and the Pi extension's,
 and the zsh oracle, which needs `/bin/zsh`. The parser is mvdan/sh, pinned in
