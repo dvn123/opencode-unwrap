@@ -62,6 +62,16 @@ dynamic	gh api ${X:--XPOST} repos/x	abstain	may match
 dynamic	echo -XPOST | xargs gh api	abstain	may match
 dynamic	echo repos/x | xargs -I{} gh api -X{} repos/x	abstain	may match
 dynamic	$program status	abstain	dynamic program
+# A lone bracket is no pattern, so `[ … ]` runs the `test …` it spells and is
+# judged by test's rules; an unclosed `[` is a program of its own.
+bracket	[ -s x ] && echo y	allow	
+bracket	echo [ ]	allow	
+bracket	until [ -s x ]; do echo y; done	allow	
+bracket	[ -s x ] && timeout 5 rm build	deny	
+bracket	[ -s $f ] && echo y	allow	
+bracket	[ -s x ] && curl x	abstain	no allow rule
+bracket	[ -s x	abstain	no allow rule
+bracket	[x] status	abstain	dynamic program
 dynamic	read -r f <<< -XPOST; gh api $f repos/x	abstain	no allow rule
 # zsh decides these itself, so they stay with Claude: a parameter flag,
 # prompt substitution, a loop over a variable the shell or a program reads,

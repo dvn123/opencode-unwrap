@@ -28,7 +28,8 @@ shell-unwrap applies rules; it holds none. It reads three inputs:
   each with the options that keep it the same command (`*` for every option
   its grammar reads), the assignments that change nothing a rule decides
   (`NAME=value`, or `NAME` for any plain value, which `export` may also set),
-  and the shell options a script may set with `setopt` or `set`;
+  the shell options a script may set with `setopt` or `set`, and `restructure`
+  (below);
 - the grammar in `internal/unwrap/programs.yaml`: facts about how programs read
   their arguments, which options take values, where a wrapper's command starts,
   where `--` ends the options, and what an argument does (a directory, a
@@ -88,7 +89,8 @@ rules or run the binary.
 
 ### Claude Code
 
-The hook is a `Bash` PreToolUse command. It judges every simple command in the
+The hook is a `Bash` and `Monitor` PreToolUse command; Monitor runs its
+`command` in the Bash tool's shell. It judges every simple command in the
 script, including those in loops, pipelines, subshells, and command and
 process substitutions, against the `Bash(...)` rules in `settings.json` with
 Claude's glob matching. It denies the whole command when any spelling of one is
@@ -100,6 +102,16 @@ this hook; it therefore asks when it cannot parse the command or fails, and its
 guards fail closed. Claude's bypass permissions mode still shows a hook's ask,
 so in that mode the hook never asks; its denies still apply, as Claude's own
 deny rules do.
+
+Some commands it leaves to Claude only because of how they are written: a
+program named at run time, `git -C` or `cd` to a run-time directory, a
+redirect to a run-time path, or a run-time value that an allow rule covers for
+some values but not all. With `restructure` set to `deny` or `ask` in the
+policy, it denies or asks for such a command with how to rewrite it (`git -C
+~/repo status`, `for f in a.txt b.txt`). It does so only when every step it
+leaves undecided is of that kind: a program no allow rule covers, or a guard a
+run-time value may meet, still goes to Claude. Bypass mode drops it, as it
+drops an ask.
 
 The deny and ask guards find commands with mvdan/sh's parser in its zsh and
 bash dialects, keeping every command either finds, and judge each piece
@@ -265,10 +277,11 @@ bun run check
 ```
 
 Standalone, copy `dist/hook/shell-unwrap` into `~/.claude/hooks/` and register
-it in `settings.json`:
+it in `settings.json`. Monitor runs its `command` in the Bash tool's shell, so
+the hook judges it as a Bash command:
 
 ```json
-{"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+{"hooks": {"PreToolUse": [{"matcher": "Bash|Monitor", "hooks": [
   {"type": "command", "command": "~/.claude/hooks/shell-unwrap claude"}
 ]}]}}
 ```

@@ -6,6 +6,8 @@
       "Bash(gh api *)",
       "Bash(rg *)",
       "Bash(echo *)",
+      "Bash(test *)",
+      "Bash(jq -r *)",
       "Bash(ls *)",
       "Bash(wc *)",
       "Bash(fd *)",

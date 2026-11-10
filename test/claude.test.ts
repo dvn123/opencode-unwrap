@@ -100,8 +100,87 @@ describe("claude hook", () => {
     expect((await hook("Bash", "timeout 5 rm build", "bypassPermissions"))?.permissionDecision).toBe("deny");
   });
 
-  test("other tools get no decision", async () => {
+  test("a Monitor command gets the Bash decision", async () => {
+    // Monitor runs its command in the Bash tool's shell, typically as a
+    // polling loop, so every guard applies as written.
+    for (const command of [
+      "while true; do git status; rg -n x; done",
+      "while true; do git status; timeout 5 rm build; done",
+      "for r in o; do git push $r; done",
+      "rg -n x $f",
+      "while true; do git status; curl x; done",
+    ]) {
+      expect(await hook("Monitor", command)).toEqual(await hook("Bash", command));
+    }
+    expect((await hook("Monitor", "while true; do git status; timeout 5 rm build; done"))?.permissionDecision).toBe(
+      "deny",
+    );
+  });
+
+  test("other tools and a WebSocket Monitor get no decision", async () => {
     expect(await hook("Read", "git status")).toBeUndefined();
+    const run = Bun.spawn([join(root, "hooks/shell-unwrap"), "claude"], {
+      stdin: new Blob([
+        JSON.stringify({ tool_name: "Monitor", tool_input: { ws: { url: "wss://x" }, description: "d" }, cwd: root }),
+      ]),
+      stdout: "pipe",
+    });
+    expect(await new Response(run.stdout).text()).toBe("");
+    expect(await run.exited).toBe(0);
+  });
+
+  test("the restructure policy turns a give-up on how a command is written into the rewrite", async () => {
+    // A root of its own whose policy sets `restructure`.
+    const withPolicy = (restructure: string) => {
+      const own = realpathSync(mkdtempSync(join(tmpdir(), "shell-unwrap-")));
+      cpSync(DIST, join(own, "hooks"), { recursive: true });
+      cpSync(join(root, "settings.json"), join(own, "settings.json"));
+      const extras = JSON.parse(readFileSync(join(root, "shell-unwrap.json"), "utf8"));
+      writeFileSync(join(own, "shell-unwrap.json"), JSON.stringify({ ...extras, policy: { ...extras.policy, restructure } }));
+      return own;
+    };
+    const decide = async (own: string, command: string, mode = "default") => {
+      const event = { tool_name: "Bash", tool_input: { command }, cwd: own, permission_mode: mode };
+      const run = Bun.spawn([join(own, "hooks/shell-unwrap"), "claude"], {
+        stdin: new Blob([JSON.stringify(event)]),
+        stdout: "pipe",
+      });
+      const output = await new Response(run.stdout).text();
+      expect(await run.exited).toBe(0);
+      return output ? JSON.parse(output).hookSpecificOutput : undefined;
+    };
+    const deny = withPolicy("deny");
+    for (const [command, rewrite] of [
+      ["$tool status", "name the program literally"],
+      ["cd $d && git status", "cd to a literal path"],
+      ["git -C $d status", "git -C ~/repo"],
+      ["jq $option .", "spell the values out"],
+      ["for f in $(ls); do jq $f .; done", "spell the values out"],
+    ] as const) {
+      const output = await decide(deny, command);
+      expect(output?.permissionDecision).toBe("deny");
+      expect(output?.permissionDecisionReason).toContain(rewrite);
+    }
+    // No rewrite makes an unmatched program allowed, so it stays a prompt,
+    // as does a command with one such step beside a rewritable one. A program
+    // named at run time stops the reading of the whole script, so it is
+    // rewritten first whatever else the script runs.
+    expect(await decide(deny, "curl x")).toBeUndefined();
+    expect(await decide(deny, "jq $option .; curl x")).toBeUndefined();
+    expect((await decide(deny, "$tool status; curl x"))?.permissionDecision).toBe("deny");
+    // So does one a deny rule may match: a rewrite could make it a deny.
+    expect(await decide(deny, "git $sub")).toBeUndefined();
+    // A guard still decides first.
+    expect((await decide(deny, "$tool status; timeout 5 rm build"))?.permissionDecisionReason).not.toContain(
+      "literally",
+    );
+    // Bypass mode drops it, as it does an ask.
+    expect(await decide(deny, "$tool status", "bypassPermissions")).toBeUndefined();
+    expect((await decide(withPolicy("ask"), "$tool status"))?.permissionDecision).toBe("ask");
+    // Nothing but deny or ask is read, so the setting can never allow.
+    expect(await decide(withPolicy("allow"), "$tool status")).toBeUndefined();
+    // Without the setting the hook leaves it to Claude, as before.
+    expect(await hook("Bash", "$tool status")).toBeUndefined();
   });
 
   test("a missing settings file asks, so the guards fail closed", async () => {
