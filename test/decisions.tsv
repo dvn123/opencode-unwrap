@@ -21,6 +21,7 @@ wrapper	xargs -oI{} git status	abstain	no allow rule covers every value
 # GNU xargs -i takes its replacement string joined, never the next word.
 guard	echo a | xargs -id rm -rf d	deny	use trash
 wrapper	fd -x wc -l {}	abstain	by its arguments
+wrapper	fd -Hx wc -l {}	abstain	by its arguments
 prefix	GIT_EDITOR=true git status	allow	
 prefix	NO_COLOR=1 LANG=C.UTF-8 git status	allow	
 prefix	NO_COLOR=$X git status	abstain	
@@ -103,6 +104,9 @@ cd	cd {root}/sub/.. && ls	allow
 cd	cd .. && ls	abstain	cd outside the working directories
 cd	cd - && ls	abstain	run-time directory
 cd	cd -P {extra} && ls	abstain	cd with options
+# zsh leaves a directory reached through a symlink by name: escape/back is
+# extra, but `cd ..` from it lands in escape, outside.
+cd	cd {root}/escape/back && cd .. && echo x > "$PWD/x.txt"	abstain	cd outside the working directories
 # A cd to a missing directory fails and leaves the shell where it was.
 cd	cd missing; echo x > ../escape.txt	abstain	run-time directory
 # git, after cd or with -C, takes a directory shaped like a bare repository
@@ -230,6 +234,8 @@ hyperfine	hyperfine --export-json out.json 'rg x'	allow
 hyperfine	hyperfine --export-json .env 'rg x'	deny	Edit(//**/.env)
 hyperfine	hyperfine --input ~/.ssh/id_ed25519 'wc -l'	deny	Read(~/.ssh/**)
 hyperfine	hyperfine -P n 1 3 'head -n {n} x'	abstain	the option -P
+# An empty $x makes the second -n the first one's value, and rm a script.
+hyperfine	hyperfine -n $x -n 'rm -rf y' 'git status'	abstain	only some of the ways
 hyperfine	hyperfine "rg $x"	abstain	run-time script
 hyperfine	hyperfine -S python3 'rg x'	abstain	the option -S
 hyperfine	(cd {extra}); hyperfine 'rg x'	abstain	run-time directory

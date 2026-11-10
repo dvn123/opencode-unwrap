@@ -36,8 +36,11 @@ let root: string;
 beforeAll(() => {
   root = realpathSync(mkdtempSync(join(tmpdir(), "shell-unwrap-")));
   mkdirSync(join(root, "extra"));
-  // The symlinks the table's redirect rows write through.
-  symlinkSync(mkdtempSync(join(tmpdir(), "shell-unwrap-outside-")), join(root, "escape"));
+  // The symlinks the table's redirect rows write through, and `escape/back`,
+  // which leads from outside back to extra for the cd rows.
+  const outside = mkdtempSync(join(tmpdir(), "shell-unwrap-outside-"));
+  symlinkSync(outside, join(root, "escape"));
+  symlinkSync(join(root, "extra"), join(outside, "back"));
   symlinkSync(join(root, "extra"), join(root, "inner"));
   symlinkSync(join(root, ".env"), join(root, "env-link"));
   // Directories git would take for a bare repository: `bare`; `linked`,

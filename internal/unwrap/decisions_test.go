@@ -72,11 +72,16 @@ func TestDecisions(t *testing.T) {
 	if err := os.Mkdir(extra, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// The symlinks the table's redirect rows write through.
-	for link, target := range map[string]string{"escape": t.TempDir(), "inner": extra, "env-link": filepath.Join(root, ".env")} {
+	// The symlinks the table's redirect rows write through, and `escape/back`,
+	// which leads from outside back to extra for the cd rows.
+	outside := t.TempDir()
+	for link, target := range map[string]string{"escape": outside, "inner": extra, "env-link": filepath.Join(root, ".env")} {
 		if err := os.Symlink(target, filepath.Join(root, link)); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := os.Symlink(extra, filepath.Join(outside, "back")); err != nil {
+		t.Fatal(err)
 	}
 	// Where `mktemp` with no template puts its file.
 	t.Setenv("TMPDIR", extra)

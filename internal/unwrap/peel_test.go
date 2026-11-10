@@ -97,3 +97,20 @@ func TestTemplates(t *testing.T) {
 		}
 	}
 }
+
+// An acting option counts after find's `--`, which ends only -H, -L and -P,
+// and as a letter of a bundle of short flags; after fd's `--` it is a pattern.
+func TestActingOptions(t *testing.T) {
+	for command, acting := range map[string]bool{
+		"find -- . -name x -delete": true,
+		"find . -exec wc -l {} +":   true,
+		"fd -Hx wc -l":              true,
+		"fd -ex rs":                 false,
+		"fd -- -x":                  false,
+		"find . -name x":            false,
+	} {
+		if got := rolesOf(strings.Fields(command)).acts != ""; got != acting {
+			t.Errorf("rolesOf(%q) acts = %v, want %v", command, got, acting)
+		}
+	}
+}

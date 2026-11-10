@@ -188,9 +188,13 @@ RC_QUOTES off; Claude Code's own shell sets the first and fourth.
 behind every known obfuscation, runs every case in zsh with recording stubs on
 `PATH` and recording wrappers around builtins, and fails when an allowed case
 runs a program that matches a deny or ask rule or no allow rule, or when no
-run of a denied or asked case meets the rule. Globs stay wildcards on purpose:
-the hook could list the files, but a background command can create one named
-`--pre=sh` between the hook's check and zsh's expansion.
+run of a denied or asked case meets the rule. A glob among a command's
+arguments stays a wildcard on purpose: the hook could list the files, but a
+background command can create one named `--pre=sh` between the hook's check
+and zsh's expansion, and `--` before the glob settles it. A `for` loop's glob
+is expanded, so that `git -C "$d"` in a loop over worktrees meets each one's
+bare-repository check; a name that starts with `-` keeps the variable any
+text, and a file created after the check is the race every judged path has.
 `SHELL_UNWRAP_AUDIT=1 bun test test/oracle.test.ts` prints each case's
 decision and whether what zsh ran broke the rules, and
 `shell-unwrap why SETTINGS CWD` reads JSON-quoted commands, one per line, and
