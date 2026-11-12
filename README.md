@@ -29,7 +29,7 @@ shell-unwrap applies rules; it holds none. It reads three inputs:
   its grammar reads), the assignments that change nothing a rule decides
   (`NAME=value`, or `NAME` for any plain value, which `export` may also set),
   the shell options a script may set with `setopt` or `set`, and `restructure`
-  (below);
+  and `prompts` (below);
 - the grammar in `internal/unwrap/programs.yaml`: facts about how programs read
   their arguments, which options take values, where a wrapper's command starts,
   where `--` ends the options, and what an argument does (a directory, a
@@ -85,7 +85,8 @@ makes a spelling ask. zsh's reading of a command, quoting removed, is judged
 as one more spelling, and an allow is carried through a wrapper only when zsh
 fixes every word, so `timeout 30 git push $X` asks however `git *` reads. The
 binary asks for the rules only when a command has something to peel, and the plugin denies the command if it cannot load the
-rules or run the binary.
+rules or run the binary. With the policy's `prompts` set to `deny`, a shell
+command that would still ask is denied instead, naming what needs approval.
 
 ### Claude Code
 
@@ -112,6 +113,14 @@ policy, it denies or asks for such a command with how to rewrite it (`git -C
 leaves undecided is of that kind: a program no allow rule covers, or a guard a
 run-time value may meet, still goes to Claude. Bypass mode drops it, as it
 drops an ask.
+
+With `prompts` set to `deny`, the hook never leaves a command to a prompt: an
+ask, and a command it would leave to Claude, are denied with the reason and a
+note that prompts are off, so an unattended agent rewrites the command or
+hands it to the user instead of waiting. A command Claude's own rules would
+have allowed after the hook abstained is denied too. Bypass mode drops these
+denies, as it drops an ask; a hook that cannot read its event or rules still
+asks.
 
 The deny and ask guards find commands with mvdan/sh's parser in its zsh and
 bash dialects, keeping every command either finds, and judge each piece

@@ -76,6 +76,25 @@ describe("review", () => {
     expect(event.effect).toBe("ask");
   });
 
+  test("the prompts policy denies what would still ask", async () => {
+    const unprompted = async (command: string, effect: Permission.Effect) => {
+      const event: Evaluation = { action: "shell", resources: [command], effect };
+      await review(event, async () => RULES, { reasons: {}, policy: { ...POLICY, prompts: "deny" } }, BINARY);
+      return event;
+    };
+    for (const [command, effect] of [
+      ["unknown", "ask"],
+      ["timeout 30 bq cp a b", "ask"],
+      ["xargs -n1 bq cp a b", "allow"],
+    ] as const) {
+      const event = await unprompted(command, effect);
+      expect(event.effect).toBe("deny");
+      expect(event.message).toContain("prompts are off");
+    }
+    expect((await unprompted("timeout 30 git status", "ask")).effect).toBe("allow");
+    expect((await unprompted("git status", "allow")).effect).toBe("allow");
+  });
+
   test("loads no rules when there is nothing to peel", async () => {
     expect(await judged("git status", "allow")).toEqual({ effect: "allow", message: undefined, loads: 0 });
   });

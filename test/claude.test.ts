@@ -129,27 +129,46 @@ describe("claude hook", () => {
     expect(await run.exited).toBe(0);
   });
 
+  // A root of its own whose policy adds `setting`.
+  const withPolicy = (setting: Record<string, string>) => {
+    const own = realpathSync(mkdtempSync(join(tmpdir(), "shell-unwrap-")));
+    cpSync(DIST, join(own, "hooks"), { recursive: true });
+    cpSync(join(root, "settings.json"), join(own, "settings.json"));
+    const extras = JSON.parse(readFileSync(join(root, "shell-unwrap.json"), "utf8"));
+    writeFileSync(join(own, "shell-unwrap.json"), JSON.stringify({ ...extras, policy: { ...extras.policy, ...setting } }));
+    return own;
+  };
+  const decide = async (own: string, command: string, mode = "default") => {
+    const event = { tool_name: "Bash", tool_input: { command }, cwd: own, permission_mode: mode };
+    const run = Bun.spawn([join(own, "hooks/shell-unwrap"), "claude"], {
+      stdin: new Blob([JSON.stringify(event)]),
+      stdout: "pipe",
+    });
+    const output = await new Response(run.stdout).text();
+    expect(await run.exited).toBe(0);
+    return output ? JSON.parse(output).hookSpecificOutput : undefined;
+  };
+
+  test("the prompts policy denies, with the reason, every command that would prompt", async () => {
+    const unprompted = withPolicy({ prompts: "deny" });
+    for (const [command, reason] of [
+      ["curl x", "no allow rule covers"],
+      ["git push origin main", "needs approval"],
+      ["$tool status", "dynamic program"],
+    ] as const) {
+      const output = await decide(unprompted, command);
+      expect(output?.permissionDecision).toBe("deny");
+      expect(output?.permissionDecisionReason).toContain(reason);
+      expect(output?.permissionDecisionReason).toContain("prompts are off");
+    }
+    // Allows and denies are unchanged, and bypass mode drops the stand-in.
+    expect((await decide(unprompted, "git status"))?.permissionDecision).toBe("allow");
+    expect((await decide(unprompted, "timeout 5 rm build"))?.permissionDecisionReason).not.toContain("prompts are off");
+    expect(await decide(unprompted, "curl x", "bypassPermissions")).toBeUndefined();
+  });
+
   test("the restructure policy turns a give-up on how a command is written into the rewrite", async () => {
-    // A root of its own whose policy sets `restructure`.
-    const withPolicy = (restructure: string) => {
-      const own = realpathSync(mkdtempSync(join(tmpdir(), "shell-unwrap-")));
-      cpSync(DIST, join(own, "hooks"), { recursive: true });
-      cpSync(join(root, "settings.json"), join(own, "settings.json"));
-      const extras = JSON.parse(readFileSync(join(root, "shell-unwrap.json"), "utf8"));
-      writeFileSync(join(own, "shell-unwrap.json"), JSON.stringify({ ...extras, policy: { ...extras.policy, restructure } }));
-      return own;
-    };
-    const decide = async (own: string, command: string, mode = "default") => {
-      const event = { tool_name: "Bash", tool_input: { command }, cwd: own, permission_mode: mode };
-      const run = Bun.spawn([join(own, "hooks/shell-unwrap"), "claude"], {
-        stdin: new Blob([JSON.stringify(event)]),
-        stdout: "pipe",
-      });
-      const output = await new Response(run.stdout).text();
-      expect(await run.exited).toBe(0);
-      return output ? JSON.parse(output).hookSpecificOutput : undefined;
-    };
-    const deny = withPolicy("deny");
+    const deny = withPolicy({ restructure: "deny" });
     for (const [command, rewrite] of [
       ["$tool status", "name the program literally"],
       ["cd $d && git status", "cd to a literal path"],
@@ -176,9 +195,9 @@ describe("claude hook", () => {
     );
     // Bypass mode drops it, as it does an ask.
     expect(await decide(deny, "$tool status", "bypassPermissions")).toBeUndefined();
-    expect((await decide(withPolicy("ask"), "$tool status"))?.permissionDecision).toBe("ask");
+    expect((await decide(withPolicy({ restructure: "ask" }), "$tool status"))?.permissionDecision).toBe("ask");
     // Nothing but deny or ask is read, so the setting can never allow.
-    expect(await decide(withPolicy("allow"), "$tool status")).toBeUndefined();
+    expect(await decide(withPolicy({ restructure: "allow" }), "$tool status")).toBeUndefined();
     // Without the setting the hook leaves it to Claude, as before.
     expect(await hook("Bash", "$tool status")).toBeUndefined();
   });
