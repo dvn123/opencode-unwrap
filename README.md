@@ -59,7 +59,10 @@ its input, or puts it in place of its replacement string (`-I`, `-J`), so the
 command must pass with that input in place: an exact rule never carries it,
 and a guard judges it. A wrapper whose grammar runs scripts (`hyperfine`) is
 judged by every script it runs, each analysed as a command from where it runs,
-when no rule of its own decides it. A narrower rule matching any spelling on
+when no rule of its own decides it. A profiler that launches a command
+(`samply record`, `py-spy record -- …`, `leaks -atExit -- …`) is a wrapper
+like any other; one that reads its own options among the command's words
+carries an allow only to the words after a `--`. A narrower rule matching any spelling on
 the way decides instead, so an ask written for `timeout * bq cp` still asks.
 Other assignments, program paths, and wrappers outside the policy never carry
 an allow: they change the program, its user, or its environment, and
@@ -68,7 +71,10 @@ an allow: they change the program, its user, or its environment, and
 Through every layer, what the arguments do is judged too: a file an argument
 reads or writes (`tee out.txt`, `hyperfine --export-json f`) must pass the
 Read and Edit rules as a redirect does, and an option that acts by itself
-(`find -exec`, `fd -x`) leaves the command to Claude. A launcher whose rules
+(`find -exec`, `fd -x`) leaves the command to Claude, as does an option a
+program's grammar declines (attaching to a process) or, for a grammar that
+lists every option, one it does not list, even when a rule allows the
+command. A launcher whose rules
 name its command with it (`uv run`, as `uv run * python - *`) is not peeled.
 
 It does not interpret `sh -c` or `eval` payloads, or skip options between a

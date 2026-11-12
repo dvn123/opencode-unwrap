@@ -249,6 +249,41 @@ hyperfine	hyperfine -n $x -n 'rm -rf y' 'git status'	abstain	only some of the wa
 hyperfine	hyperfine "rg $x"	abstain	run-time script
 hyperfine	hyperfine -S python3 'rg x'	abstain	the option -S
 hyperfine	(cd {extra}); hyperfine 'rg x'	abstain	run-time directory
+# Profilers carry the decision of the command they launch, and are judged by
+# the files they write; attaching to a process is left to Claude.
+profiler	samply record --save-only -o out.json.gz rg x	allow	
+profiler	samply record -r 4000 --include-args=3 git status	allow	
+profiler	samply record rm -rf y	deny	
+profiler	samply record make	abstain	no allow rule
+profiler	samply record -o .env rg x	deny	Edit(//**/.env)
+profiler	samply record -p 42	abstain	the option -p
+profiler	samply record --address 0.0.0.0 rg x	abstain	the option --address
+profiler	samply load profile.json.gz	abstain	no allow rule
+profiler	py-spy record -o out.svg -- uv run pytest	allow	
+profiler	py-spy top --rate 50 -- git status	allow	
+profiler	py-spy record -- rm -rf y	deny	
+profiler	py-spy record -o .env -- rg x	deny	Edit(//**/.env)
+# py-spy reads its options among the command's words until `--`, so a
+# command before it is not the one that would be judged.
+profiler	py-spy record uv run pytest -o .env	deny	Edit(//**/.env)
+profiler	py-spy record rg x	abstain	
+profiler	py-spy record make -- rg x	abstain	
+profiler	py-spy record rm -rf y	deny	
+profiler	py-spy record make -- rm -rf y	deny	
+profiler	leaks -atExit rm -rf y	deny	
+profiler	py-spy dump --pid 42	abstain	
+profiler	leaks -quiet -atExit -- rg x	allow	
+profiler	/usr/bin/leaks -nostacks -outputGraph out.memgraph -atExit -- git status	allow	
+profiler	leaks -atExit -- rm -rf y	deny	
+profiler	leaks -outputGraph .env -atExit -- rg x	deny	Edit(//**/.env)
+profiler	leaks -debug=help -atExit -- rg x	abstain	
+profiler	dotnet-trace collect --format speedscope -o t.nettrace -- git status	allow	
+profiler	dotnet-trace collect -p 42	abstain	the option -p
+profiler	dotnet-counters monitor --counters System.Runtime -- rg x	allow	
+profiler	dotnet-counters collect --dsrouter ios -- rg x	abstain	the option --dsrouter
+profiler	memray flamegraph -f -o out.html capture.bin	allow	
+profiler	memray flamegraph -o .env capture.bin	deny	Edit(//**/.env)
+profiler	memray flamegraph --out=x.html capture.bin	abstain	
 # $(mktemp) with no template, -t or an absolute one names a fresh file in
 # a known directory ($TMPDIR is {extra} here); a relative template does not.
 mktemp	B=$(mktemp -t pr-body.XXXXXX) && echo x > $B && wc -l $B	allow	

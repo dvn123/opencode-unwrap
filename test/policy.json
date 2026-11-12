@@ -18,7 +18,8 @@
       "Edit(//tmp/**)",
       "Bash(setopt pipefail)",
       "Bash(cd *)",
-      "Bash(tee *)"
+      "Bash(tee *)",
+      "Bash(memray flamegraph *)"
     ],
     "ask": [
       "Bash(git push *)",
@@ -115,6 +116,21 @@
         "--verbose"
       ],
       "hyperfine": [
+        "*"
+      ],
+      "samply": [
+        "*"
+      ],
+      "py-spy": [
+        "*"
+      ],
+      "leaks": [
+        "*"
+      ],
+      "dotnet-trace": [
+        "*"
+      ],
+      "dotnet-counters": [
         "*"
       ]
     },
