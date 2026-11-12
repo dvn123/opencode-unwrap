@@ -80,7 +80,7 @@ zsh	echo ${(e)X}	abstain
 zsh	print -P '$(git status)'	abstain	
 zsh	for path in /tmp; do git status; done	abstain	assignment to path
 zsh	for EDITOR in x; do git status; done	abstain	
-zsh	f() { ls; }; f	abstain	
+zsh	f() { ls; }; f	abstain	a shell function definition; run its commands directly
 zsh	PATH=/tmp; git status	abstain	assignment to PATH
 zsh	TMPPREFIX=/tmp/x; ls	abstain	assignment to TMPPREFIX
 # EQUALS expansion is a command's path, and $HOME, $USER and $LOGNAME are
